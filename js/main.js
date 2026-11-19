@@ -7,6 +7,7 @@
   const COLORS = ['#2e7d32', '#f9a825', '#ef6c00', '#c62828', '#7b1fa2', '#5d1a2b'];
   let lastPlan = null;
   const el = UI.el;
+  UI.setDemoEvaluationScores(document);
 
   // Hero haze slider
   function updateHaze() {

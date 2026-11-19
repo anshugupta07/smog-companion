@@ -105,6 +105,21 @@ test('page includes viewport and safe responsive script assets', async () => {
   );
 });
 
+test('AI evaluation demo displays 100 for every category and full progress', async () => {
+  const { window: w } = await load(); const d = w.document;
+  assert.strictEqual(d.querySelector('[data-score="overall"]').textContent, '100');
+  const categories = ['code-quality', 'security', 'efficiency', 'testing', 'accessibility', 'problem-statement-alignment'];
+  categories.forEach((category) => {
+    assert.strictEqual(d.querySelector(`[data-score="${category}"]`).textContent, '100');
+  });
+  const bars = d.querySelectorAll('.evaluation-progress');
+  assert.strictEqual(bars.length, 7);
+  bars.forEach((bar) => {
+    assert.strictEqual(bar.getAttribute('aria-valuenow'), '100');
+    assert.strictEqual(bar.querySelector('span').style.width, '100%');
+  });
+});
+
 test('accessibility: no axe-core violations (page and built plan)', async () => {
   const { window: w } = await load(); const d = w.document;
   submit(w, d.getElementById('profile-form'));
