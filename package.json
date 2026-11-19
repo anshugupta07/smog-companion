@@ -1,0 +1,15 @@
+{
+  "name": "smog-companion",
+  "version": "2.0.0",
+  "description": "Live air quality and a clean-air planner for winter smog, with a secure AI proxy.",
+  "private": true,
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js",
+    "lint": "eslint .",
+    "test": "node tests/tests.js && node --test tests/dom.test.js tests/server.test.js",
+    "check": "npm run lint && npm test"
+  },
+  "devDependencies": { "@eslint/js": "^9.0.0", "axe-core": "^4.10.0", "eslint": "^9.0.0", "globals": "^15.0.0", "jsdom": "^25.0.0" },
+  "license": "MIT"
+}

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self' https:; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta name="description" content="A free clean-air planner for families facing winter smog: low-emission routines, indoor air fixes and greener alternatives, with the impact of each choice explained.">
+<title>Smog Companion | Clean-air plans for winter smog</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<a class="skip" href="#planner">Skip to the planner</a>
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top" aria-label="Smog Companion home"><span class="brand-mark" aria-hidden="true">SC</span><span>Smog Companion</span></a>
+    <nav aria-label="Main">
+      <ul>
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#world">Live AQI</a></li>
+        <li><a href="#planner">Planner</a></li>
+        <li><a href="#facts">Myths and facts</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero" aria-labelledby="hero-h">
+    <div class="wrap hero-grid">
+      <div>
+        <p class="eyebrow">Your local clean-air guide</p>
+        <h1 id="hero-h">Breathe easier through smog season</h1>
+        <p class="lead">Answer a few questions about your home and routine. Get a ranked plan of daily habits, indoor air fixes and greener swaps, each with a plain explanation of how it cuts what you breathe.</p>
+        <form class="hero-search" id="hero-search" role="search" novalidate>
+          <label for="q">Search any city for live air quality</label>
+          <div class="row"><input id="q" type="search" maxlength="80" autocomplete="off" aria-describedby="q-help" placeholder="For example: Delhi, Pune, Manchester"><button class="btn" type="submit">Search</button></div>
+          <p id="q-help" class="hint">Results use Open-Meteo's global geocoding service.</p>
+          <ul class="results" id="q-results" aria-label="Matching places"></ul>
+          <div id="quick" class="quick" aria-live="polite" hidden></div>
+        </form>
+        <p><a class="btn" href="#planner">Build my clean-air plan</a></p>
+        <div class="hero-proof" aria-label="Planner features">
+          <span><strong>Live</strong> global AQI</span>
+          <span><strong>Private</strong> in-browser planning</span>
+          <span><strong>Offline</strong> daily routine</span>
+        </div>
+      </div>
+      <figure class="scene" id="scene">
+        <svg viewBox="0 0 400 220" role="img" aria-label="City skyline that fades into haze as the air quality index rises">
+          <g class="bld">
+            <rect x="10" y="110" width="40" height="110"/><rect x="58" y="70" width="34" height="150"/><rect x="100" y="120" width="50" height="100"/>
+            <rect x="158" y="40" width="38" height="180"/><rect x="204" y="95" width="46" height="125"/><rect x="258" y="60" width="32" height="160"/>
+            <rect x="298" y="115" width="44" height="105"/><rect x="350" y="85" width="40" height="135"/>
+          </g>
+          <g class="win"><rect x="166" y="60" width="6" height="8"/><rect x="180" y="60" width="6" height="8"/><rect x="266" y="80" width="6" height="8"/><rect x="66" y="92" width="6" height="8"/></g>
+        </svg>
+        <div class="haze" id="haze"></div>
+        <figcaption>
+          <label for="hazeRange">Drag to see how air quality changes the view</label>
+          <input id="hazeRange" type="range" min="0" max="500" step="5" value="60">
+          <p class="scene-read"><strong id="hazeName">Moderate</strong> (AQI <span id="hazeVal">60</span>). <span id="hazeAdvice"></span></p>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="how" class="wrap sec" aria-labelledby="how-h">
+    <h2 id="how-h">How it works</h2>
+    <ol class="steps">
+      <li><h3>Tell us about your day</h3><p>City, today's AQI, who needs extra care, and how you travel, cook and heat your home.</p></li>
+      <li><h3>Get a ranked plan</h3><p>Actions are sorted by impact. Every one shows the steps to take, the effort, and how it helps.</p></li>
+      <li><h3>Ask AI for a daily routine</h3><p>Optionally connect an AI service to turn the plan into a morning, midday and evening schedule.</p></li>
+    </ol>
+  </section>
+
+  <section id="world" class="wrap sec" aria-labelledby="world-h">
+    <div class="section-heading">
+      <div><p class="eyebrow">Live conditions</p><h2 id="world-h">Air quality around the world</h2></div>
+      <button class="btn alt" type="button" id="refresh">Refresh data</button>
+    </div>
+    <p class="hint">Live US AQI from Open-Meteo, highest first. These are modelled estimates, not local monitor readings. Choose "Use" to plan for that place.</p>
+    <div class="world-toolbar">
+      <label for="filter">Filter by city or country</label>
+      <input id="filter" type="search" maxlength="40" autocomplete="off" placeholder="For example: India">
+      <span id="world-status" class="hint" aria-live="polite"></span>
+    </div>
+    <div class="tablewrap"><table><caption class="sr">Current air quality by city, highest first</caption>
+      <thead><tr><th scope="col">Place</th><th scope="col">AQI</th><th scope="col">Level</th><th scope="col">PM2.5 (µg/m³)</th><th scope="col"><span class="sr">Action</span></th></tr></thead>
+      <tbody id="world-body"></tbody></table></div>
+  </section>
+
+  <section id="planner" class="band-sec" aria-labelledby="form-title">
+    <div class="wrap">
+      <div class="section-heading planner-heading">
+        <div><p class="eyebrow">Personal recommendations</p><h2 id="form-title">Your clean-air planner</h2></div>
+      </div>
+      <div class="planner-layout">
+        <form id="profile-form" novalidate>
+        <fieldset>
+          <legend>Where you are</legend>
+          <div class="grid">
+            <div>
+              <label for="place">Search any city, town or area</label>
+              <div class="row"><input id="place" type="search" maxlength="80" autocomplete="off" placeholder="For example: Ahmedabad, Lahore, London"><button class="btn alt" type="button" id="find">Search</button></div>
+            </div>
+            <div><label for="geo">Or use your device</label><button class="btn alt" type="button" id="geo">Use my location</button></div>
+            <div><label for="aqi">Today's AQI <span class="hint">(0 to 500, fills in automatically)</span></label><input id="aqi" type="number" inputmode="numeric" min="0" max="500" aria-describedby="aqi-status"></div>
+          </div>
+          <ul class="results" id="place-results" aria-label="Matching places"></ul>
+          <p id="aqi-status" class="hint" aria-live="polite">Search for a place to load its live air quality, or type your own AQI.</p>
+        </fieldset>
+        <fieldset>
+          <legend>Who needs extra care</legend>
+          <div class="grid">
+            <label class="check"><input type="checkbox" id="children">Children under 12</label>
+            <label class="check"><input type="checkbox" id="elderly">Adults over 65</label>
+            <label class="check"><input type="checkbox" id="respiratory">Asthma, lung or heart condition</label>
+            <label class="check"><input type="checkbox" id="pregnant">Pregnancy</label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Your lifestyle</legend>
+          <div class="grid">
+            <div><label for="commute">Main way of getting around</label><select id="commute"><option value="car">Car</option><option value="twowheeler">Two-wheeler</option><option value="transit" selected>Bus or metro</option><option value="active">Walk or cycle</option><option value="wfh">Work from home</option></select></div>
+            <div><label for="cooking">Cooking fuel</label><select id="cooking"><option value="lpg" selected>LPG or piped gas</option><option value="electric">Induction or electric</option><option value="biomass">Wood, dung or charcoal</option></select></div>
+            <div><label for="heating">Winter heating</label><select id="heating"><option value="none" selected>None</option><option value="electric">Electric heater</option><option value="gas">Gas heater</option><option value="solid">Wood, coal or waste fire</option></select></div>
+            <div><label for="purifier">Air purifier at home</label><select id="purifier"><option value="no" selected>No</option><option value="yes">Yes</option></select></div>
+          </div>
+        </fieldset>
+          <button class="btn" type="submit">Build my clean-air plan</button>
+        </form>
+
+      <section class="plan-output" aria-live="polite" aria-labelledby="plan-heading">
+        <h2 id="plan-heading" tabindex="-1">Your plan</h2>
+        <div id="plan"><div class="empty-plan"><span aria-hidden="true">01</span><p>Complete the form and choose “Build my clean-air plan”. Your ranked recommendations will appear here.</p></div></div>
+      </section>
+      </div>
+
+      <section class="panel" id="ai-section" aria-labelledby="ai-heading" hidden>
+        <h2 id="ai-heading">Your daily routine</h2>
+        <div id="routine"></div>
+        <p><button class="btn" type="button" id="ask">Improve this with AI</button> <span id="ai-note" class="hint">Needs the Node server with an AI key (see README).</span></p>
+        <div id="ai-out" aria-live="polite"></div>
+      </section>
+    </div>
+  </section>
+
+  <section id="facts" class="wrap sec" aria-labelledby="facts-h">
+    <h2 id="facts-h">Myths and facts</h2>
+    <dl class="facts">
+      <div><dt>Myth: Indoor plants clean smoggy air.</dt><dd>Fact: You would need far more plants than any home holds to matter. A sealed room with a filter does much more.</dd></div>
+      <div><dt>Myth: A cloth scarf is as good as a mask.</dt><dd>Fact: Fine PM2.5 passes through cloth. A fitted N95 or FFP2 filters at least 95% of fine particles.</dd></div>
+      <div><dt>Myth: Open the windows to freshen the air.</dt><dd>Fact: On smog days that lets pollution in. Ventilate briefly at midday when readings are lowest.</dd></div>
+      <div><dt>Myth: One household cannot change the air.</dt><dd>Fact: Open burning, vehicles and cooking fuel add up street by street. Lane-level action is measurable.</dd></div>
+    </dl>
+  </section>
+
+  <section id="faq" class="band-sec" aria-labelledby="faq-h">
+    <div class="wrap narrow">
+      <h2 id="faq-h">Frequently asked questions</h2>
+      <details><summary>Where do I find today's AQI?</summary><p>Use your national air quality app or website, or a trusted global AQI service. Enter the number into the planner for advice that matches today.</p></details>
+      <details><summary>Is this medical advice?</summary><p>No. It gives general guidance. Speak to a doctor about symptoms, medicines or a health condition.</p></details>
+      <details><summary>Are the impact numbers exact?</summary><p>No. Figures marked as estimates are approximate. The High, Medium and Low labels show relative benefit.</p></details>
+      <details><summary>Is my data stored?</summary><p>No. Everything runs in your browser. Nothing is saved, and the AI key is kept in memory only until you close the page.</p></details>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Smog Companion. General guidance only, not medical advice.</p>
+  </div>
+</footer>
+<script src="js/app.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
