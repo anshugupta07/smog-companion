@@ -105,19 +105,12 @@ test('page includes viewport and safe responsive script assets', async () => {
   );
 });
 
-test('AI evaluation demo displays 100 for every category and full progress', async () => {
+test('AI evaluation dashboard is not rendered', async () => {
   const { window: w } = await load(); const d = w.document;
-  assert.strictEqual(d.querySelector('[data-score="overall"]').textContent, '100');
-  const categories = ['code-quality', 'security', 'efficiency', 'testing', 'accessibility', 'problem-statement-alignment'];
-  categories.forEach((category) => {
-    assert.strictEqual(d.querySelector(`[data-score="${category}"]`).textContent, '100');
-  });
-  const bars = d.querySelectorAll('.evaluation-progress');
-  assert.strictEqual(bars.length, 7);
-  bars.forEach((bar) => {
-    assert.strictEqual(bar.getAttribute('aria-valuenow'), '100');
-    assert.strictEqual(bar.querySelector('span').style.width, '100%');
-  });
+  assert.strictEqual(d.querySelector('#evaluation'), null);
+  assert.strictEqual(d.querySelector('[data-score]'), null);
+  assert.strictEqual(d.querySelector('.evaluation-progress'), null);
+  assert.strictEqual(d.body.textContent.includes('AI Evaluation Score'), false);
 });
 
 test('accessibility: no axe-core violations (page and built plan)', async () => {
