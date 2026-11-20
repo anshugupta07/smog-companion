@@ -3,16 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self' https:; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://geocoding-api.open-meteo.com https://air-quality-api.open-meteo.com; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="description" content="A free clean-air planner for families facing winter smog: low-emission routines, indoor air fixes and greener alternatives, with the impact of each choice explained.">
 <title>Smog Companion | Clean-air plans for winter smog</title>
+<meta name="theme-color" content="#17322a">
+<meta name="color-scheme" content="light">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2317322a'/%3E%3Ctext x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' text-anchor='middle' fill='%23fff'%3ESC%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://air-quality-api.open-meteo.com" crossorigin>
+<link rel="preconnect" href="https://geocoding-api.open-meteo.com" crossorigin>
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 <a class="skip" href="#planner">Skip to the planner</a>
+<noscript><p class="noscript">Smog Companion needs JavaScript to look up live air quality and build your plan. The safety guidance on this page still works without it.</p></noscript>
 <header class="nav">
   <div class="wrap nav-in">
-    <a class="brand" href="#top" aria-label="Smog Companion home"><span class="brand-mark" aria-hidden="true">SC</span><span>Smog Companion</span></a>
+    <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">SC</span><span>Smog Companion</span></a>
     <nav aria-label="Main">
       <ul>
         <li><a href="#how">How it works</a></li>
@@ -102,20 +108,20 @@
       <div class="planner-layout">
         <form id="profile-form" novalidate>
         <fieldset>
-          <legend>Where you are</legend>
-          <div class="grid">
-            <div>
+          <legend>Your Location</legend>
+          <div class="grid location-grid">
+            <div class="place-field">
               <label for="place">Search any city, town or area</label>
-              <div class="row"><input id="place" type="search" maxlength="80" autocomplete="off" placeholder="For example: Ahmedabad, Lahore, London"><button class="btn alt" type="button" id="find">Search</button></div>
+              <div class="row"><input id="place" type="search" maxlength="80" autocomplete="off" placeholder="e.g. Mumbai"><button class="btn alt" type="button" id="find">Search</button></div>
             </div>
-            <div><label for="geo">Or use your device</label><button class="btn alt" type="button" id="geo">Use my location</button></div>
-            <div><label for="aqi">Today's AQI <span class="hint">(0 to 500, fills in automatically)</span></label><input id="aqi" type="number" inputmode="numeric" min="0" max="500" aria-describedby="aqi-status"></div>
+            <div class="geo-field"><label for="geo">Or use your device</label><button class="btn alt" type="button" id="geo">Use my location</button></div>
+            <div class="aqi-field"><label for="aqi">Today's AQI <span class="hint">(0 to 500)</span></label><input id="aqi" type="number" inputmode="numeric" min="0" max="500" aria-describedby="aqi-status"></div>
           </div>
           <ul class="results" id="place-results" aria-label="Matching places"></ul>
-          <p id="aqi-status" class="hint" aria-live="polite">Search for a place to load its live air quality, or type your own AQI.</p>
+          <p id="aqi-status" class="hint" aria-live="polite">Enter an AQI from 0 to 500, or search for a place to fill it automatically.</p>
         </fieldset>
         <fieldset>
-          <legend>Who needs extra care</legend>
+          <legend>Vulnerable Groups (Who needs extra care)</legend>
           <div class="grid">
             <label class="check"><input type="checkbox" id="children">Children under 12</label>
             <label class="check"><input type="checkbox" id="elderly">Adults over 65</label>
@@ -135,8 +141,9 @@
           <button class="btn" type="submit">Build my clean-air plan</button>
         </form>
 
-      <section class="plan-output" aria-live="polite" aria-labelledby="plan-heading">
+      <section class="plan-output" aria-labelledby="plan-heading">
         <h2 id="plan-heading" tabindex="-1">Your plan</h2>
+        <p id="plan-status" class="sr" role="status"></p>
         <div id="plan"><div class="empty-plan"><span aria-hidden="true">01</span><p>Complete the form and choose “Build my clean-air plan”. Your ranked recommendations will appear here.</p></div></div>
       </section>
       </div>
@@ -166,7 +173,7 @@
       <details><summary>Where do I find today's AQI?</summary><p>Use your national air quality app or website, or a trusted global AQI service. Enter the number into the planner for advice that matches today.</p></details>
       <details><summary>Is this medical advice?</summary><p>No. It gives general guidance. Speak to a doctor about symptoms, medicines or a health condition.</p></details>
       <details><summary>Are the impact numbers exact?</summary><p>No. Figures marked as estimates are approximate. The High, Medium and Low labels show relative benefit.</p></details>
-      <details><summary>Is my data stored?</summary><p>No. Everything runs in your browser. Nothing is saved, and the AI key is kept in memory only until you close the page.</p></details>
+      <details><summary>Is my data stored?</summary><p>No. Everything runs in your browser. Nothing is saved. If AI is enabled, its key stays on the server and never reaches your browser.</p></details>
     </div>
   </section>
 </main>
@@ -176,8 +183,11 @@
     <p>Smog Companion. General guidance only, not medical advice.</p>
   </div>
 </footer>
-<script src="js/app.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/main.js"></script>
+<script src="js/data.js" defer></script>
+<script src="js/app.js" defer></script>
+<script src="js/air-api.js" defer></script>
+<script src="js/ui.js" defer></script>
+<script src="js/views.js" defer></script>
+<script src="js/main.js" defer></script>
 </body>
 </html>

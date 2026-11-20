@@ -1,10 +1,23 @@
 name: tests
 on: [push, pull_request]
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20, 22]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
-      - run: npm ci && npm run check
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Coverage gate (Node 22)
+        if: matrix.node-version == 22
+        run: npm run test:coverage -- --test-coverage-lines=90 --test-coverage-functions=90
+      - name: Dependency audit
+        run: npm audit --audit-level=high
