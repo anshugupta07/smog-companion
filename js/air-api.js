@@ -90,12 +90,20 @@
   function parseCurrent(current) {
     const aqi = Core.parseAqi(current && current.us_aqi);
     if (aqi === null) return null;
-    return { aqi, pm25: finiteOrNull(current.pm2_5), pm10: finiteOrNull(current.pm10), time: Core.sanitizeText(current.time, 30) };
+    return { aqi, pm25: finiteOrNull(current.pm2_5), pm10: finiteOrNull(current.pm10), time: Core.sanitizeText(current.time, 30), source: 'model', station: '' };
   }
 
   /** Current US AQI, PM2.5 and PM10 for one coordinate. */
   async function fetchAqi(lat, lon, fetchImpl) {
     if (!validCoord(lat, lon)) throw new RangeError('Invalid coordinates.');
+    if (!fetchImpl && typeof window !== 'undefined') {
+      try {
+        const proxyData = await getJson(`/api/aqi?lat=${lat}&lon=${lon}`, null);
+        if (proxyData && proxyData.reading) return proxyData.reading;
+      } catch {
+        // Static hosts and servers without a station provider use the Open-Meteo fallback.
+      }
+    }
     const data = await getJson(`${AQ_URL}?latitude=${lat}&longitude=${lon}&current=${AQ_FIELDS}&timezone=auto`, fetchImpl);
     const reading = parseCurrent(data.current);
     if (!reading) throw new Error('No air quality data for this place.');

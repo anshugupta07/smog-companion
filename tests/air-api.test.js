@@ -27,9 +27,30 @@ test('fetchAqi parses a reading and validates coordinates', async () => {
   assert.strictEqual(reading.aqi, 187);
   assert.strictEqual(reading.pm25, 98.2);
   assert.strictEqual(reading.pm10, 150);
+  assert.strictEqual(reading.source, 'model');
   await assert.rejects(Api.fetchAqi(200, 0), RangeError);
   await assert.rejects(Api.fetchAqi(1, 1, mock({ current: {} })), /No air quality/);
   await assert.rejects(Api.fetchAqi(1, 1, mock({}, false, 500)), /500/);
+});
+
+test('fetchAqi prefers the server station provider when available', async () => {
+  const previousWindow = globalThis.window;
+  globalThis.window = {};
+  try {
+    await withGlobalFetch(async (url) => {
+      if (url.startsWith('/api/aqi')) {
+        return okJson({ reading: { aqi: 210, pm25: 99, pm10: 140, time: '2026-11-20T11:30', source: 'station', station: 'Pune Central' } });
+      }
+      throw new Error('Open-Meteo fallback should not be called');
+    }, async () => {
+      const reading = await Api.fetchAqi(18.52, 73.85);
+      assert.strictEqual(reading.source, 'station');
+      assert.strictEqual(reading.station, 'Pune Central');
+    });
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
 });
 
 test('fetchAqi reports missing particle readings as null', async () => {

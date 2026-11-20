@@ -69,9 +69,33 @@ async function readProfile(req) {
   return { profile: body.profile };
 }
 
+function validCoordinates(lat, lon) {
+  return Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+}
+
+function stationParticle(data, pollutant) {
+  const value = data.iaqi && data.iaqi[pollutant] ? data.iaqi[pollutant].v : null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function stationReading(body) {
+  if (!body || body.status !== 'ok' || !body.data || !Number.isFinite(Number(body.data.aqi))) return null;
+  const data = body.data;
+  return {
+    aqi: Math.max(0, Math.min(500, Math.round(Number(data.aqi)))),
+    pm25: stationParticle(data, 'pm25'),
+    pm10: stationParticle(data, 'pm10'),
+    time: String(data.time && (data.time.iso || data.time.s) || '').slice(0, 30),
+    source: 'station',
+    station: String(data.city && data.city.name || '').slice(0, 80),
+  };
+}
+
 /** Creates the HTTP server. Options are injectable so tests can fake the environment, AI and clock. */
-function createApp({ env = process.env, ask = askAI, now = Date.now } = {}) {
+function createApp({ env = process.env, ask = askAI, now = Date.now, providerFetch = fetch } = {}) {
   const isLimited = createRateLimiter({ ...RATE, now });
+  const isAqiLimited = createRateLimiter({ windowMs: 60000, max: 30, now });
   const serveStatic = createStaticHandler();
   const trustProxy = env.TRUST_PROXY === '1';
 
@@ -99,6 +123,35 @@ function createApp({ env = process.env, ask = askAI, now = Date.now } = {}) {
     }
   }
 
+  async function stationAqi(req, res) {
+    if (isAqiLimited(clientKey(req))) return sendJson(res, 429, { error: 'Too many AQI requests. Try again in a minute.' });
+    if (!env.WAQI_API_TOKEN) return sendJson(res, 503, { error: 'Monitoring-station provider is not configured.' });
+
+    const url = new URL(req.url, 'http://localhost');
+    const lat = Number(url.searchParams.get('lat'));
+    const lon = Number(url.searchParams.get('lon'));
+    if (!validCoordinates(lat, lon)) {
+      return sendJson(res, 400, { error: 'Valid latitude and longitude are required.' });
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    try {
+      const providerUrl = `https://api.waqi.info/feed/geo:${lat};${lon}/?token=${encodeURIComponent(env.WAQI_API_TOKEN)}`;
+      const provider = await providerFetch(providerUrl, { signal: controller.signal });
+      if (!provider.ok) throw new Error(`Provider returned ${provider.status}`);
+      const body = await provider.json();
+      const reading = stationReading(body);
+      if (!reading) throw new Error('No station reading');
+      return sendJson(res, 200, { reading });
+    } catch (error) {
+      if (error.name === 'AbortError') return sendJson(res, 502, { error: 'Monitoring-station provider timed out.' });
+      return sendJson(res, 502, { error: 'Monitoring-station provider unavailable.' });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   return http.createServer((req, res) => {
     if (isHttps(req)) res.setHeader('Strict-Transport-Security', HSTS);
     let url;
@@ -111,6 +164,10 @@ function createApp({ env = process.env, ask = askAI, now = Date.now } = {}) {
     if (url.pathname === '/api/routine') {
       if (req.method !== 'POST') return send(res, 405, 'Method not allowed', { Allow: 'POST' });
       return routine(req, res);
+    }
+    if (url.pathname === '/api/aqi') {
+      if (req.method !== 'GET') return send(res, 405, 'Method not allowed', { Allow: 'GET' });
+      return stationAqi(req, res);
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed', { Allow: 'GET, HEAD' });
     return serveStatic(req, res, url.pathname);

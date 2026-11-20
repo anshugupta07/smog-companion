@@ -109,6 +109,47 @@ test('AI adapter must return usable text before reporting success', async () => 
   s.close();
 });
 
+test('GET /api/aqi validates coordinates and supports the nearest-station provider', async () => {
+  const seen = [];
+  const providerFetch = async (url) => {
+    seen.push(url);
+    return { ok: true, json: async () => ({
+      status: 'ok',
+      data: {
+        aqi: 210.4,
+        iaqi: { pm25: { v: 99.2 }, pm10: { v: 140 } },
+        time: { iso: '2026-11-20T11:30:00+05:30' },
+        city: { name: 'Pune Central, India' },
+      },
+    }) };
+  };
+  const { s, port } = await start({ env: { WAQI_API_TOKEN: 'station-secret' }, providerFetch });
+  assert.strictEqual((await request(port, { path: '/api/aqi?lat=999&lon=20' })).status, 400);
+  const r = await request(port, { path: '/api/aqi?lat=18.52&lon=73.85' });
+  assert.strictEqual(r.status, 200);
+  assert.deepStrictEqual(JSON.parse(r.body).reading, {
+    aqi: 210,
+    pm25: 99.2,
+    pm10: 140,
+    time: '2026-11-20T11:30:00+05:30',
+    source: 'station',
+    station: 'Pune Central, India',
+  });
+  assert.ok(seen[0].includes('api.waqi.info/feed/geo:18.52;73.85'));
+  assert.ok(seen[0].includes('station-secret'));
+  s.close();
+});
+
+test('GET /api/aqi reports missing configuration and provider failures', async () => {
+  const missing = await start({ env: {} });
+  assert.strictEqual((await request(missing.port, { path: '/api/aqi?lat=1&lon=2' })).status, 503);
+  missing.s.close();
+
+  const broken = await start({ env: { WAQI_API_TOKEN: 'x' }, providerFetch: async () => ({ ok: false, status: 503 }) });
+  assert.strictEqual((await request(broken.port, { path: '/api/aqi?lat=1&lon=2' })).status, 502);
+  broken.s.close();
+});
+
 test('rate limit returns 429 after 10 requests a minute', async () => {
   const { s, port } = await start({ env: {}, now: () => 1000 });
   let last;

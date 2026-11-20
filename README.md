@@ -11,6 +11,12 @@ Optional AI (the key stays on the server, never in the browser):
 ```
 AI_ENDPOINT=https://api.openai.com/v1/chat/completions AI_API_KEY=... AI_MODEL=gpt-4o-mini npm start
 ```
+Optional nearest monitoring-station AQI:
+```
+WAQI_API_TOKEN=... npm start
+```
+The station provider is used through the server at `/api/aqi`; static hosts and servers
+without this token fall back to Open-Meteo model data.
 Without these variables the site still works fully; the "Improve this with AI" button explains that AI is not configured.
 The front end is also static: host `index.html`, `css/` and `js/` on GitHub Pages or Netlify (live AQI works, the AI button needs the Node server).
 
@@ -18,6 +24,7 @@ The front end is also static: host `index.html`, `css/` and `js/` on GitHub Page
 | --- | --- |
 | `PORT` | Port to listen on (default 3000) |
 | `AI_ENDPOINT`, `AI_API_KEY`, `AI_MODEL` | Enable `POST /api/routine` with any OpenAI-compatible API |
+| `WAQI_API_TOKEN` | Enable nearest monitoring-station AQI through `/api/aqi` |
 | `TRUST_PROXY=1` | Behind one reverse proxy: use the real client IP for rate limits and send HSTS on HTTPS |
 
 `GET /healthz` returns `{"status":"ok"}` for uptime checks.

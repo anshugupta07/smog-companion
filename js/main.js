@@ -72,7 +72,10 @@
       const reading = await Api.fetchAqi(place.lat, place.lon);
       $('aqi').value = String(reading.aqi);
       const pm = reading.pm25 !== null ? `, PM2.5 ${reading.pm25} µg/m³` : '';
-      plannerStatus(`Live US AQI ${reading.aqi} for ${Views.placeLabel(place)}${pm}, updated ${reading.time}. Source: Open-Meteo.`);
+      const source = reading.source === 'station'
+        ? `Nearest station: ${reading.station || 'AQI station'}`
+        : 'Model estimate: Open-Meteo';
+      plannerStatus(`Live US AQI ${reading.aqi} for ${Views.placeLabel(place)}${pm}, updated ${reading.time}. ${source}.`);
       return reading;
     } catch (err) {
       plannerStatus(`Could not load live air quality (${err.message}) Type your AQI instead.`, true);
