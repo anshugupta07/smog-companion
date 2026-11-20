@@ -1,89 +1,98 @@
 'use strict';
 /**
  * Zero-dependency static server + AI proxy.
- *   npm start                      serves the site on http://localhost:3000
- *   AI_ENDPOINT=https://... AI_API_KEY=... AI_MODEL=... npm start    enables POST /api/routine
+ *   npm start                                                         serves the site on http://localhost:3000
+ *   AI_ENDPOINT=https://... AI_API_KEY=... AI_MODEL=... npm start     enables POST /api/routine
  * The AI key stays on the server and is never sent to the browser.
+ * Set TRUST_PROXY=1 when running behind one reverse proxy (real client IP for rate limits, HSTS).
  */
 const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const S = require('./js/app.js');
+const Core = require('./js/app.js');
+const { askAI } = require('./lib/ai.js');
+const { send, sendJson, isJsonRequest } = require('./lib/http.js');
+const { createRateLimiter } = require('./lib/rate-limit.js');
+const { createStaticHandler, resolvePublicFile } = require('./lib/static.js');
+const { HSTS } = require('./lib/security.js');
 
-const ROOT = __dirname;
-const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
-const PUBLIC_DIRS = new Set(['css', 'js']);
 const MAX_BODY = 4096;
 const RATE = { windowMs: 60000, max: 10 };
-const SECURITY_HEADERS = {
-  'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self' https:; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
-  'X-Content-Type-Options': 'nosniff',
-  'Referrer-Policy': 'no-referrer',
-  'X-Frame-Options': 'DENY',
-  'Permissions-Policy': 'geolocation=(self), camera=(), microphone=()',
-};
+const TIMEOUTS = { headersMs: 10000, requestMs: 15000, keepAliveMs: 5000 };
 
-function send(res, status, body, headers = {}) {
-  res.writeHead(status, { ...SECURITY_HEADERS, ...headers });
-  res.end(body);
-}
-const sendJson = (res, status, obj) => send(res, status, JSON.stringify(obj), { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'close' });
+const tooLarge = () => Object.assign(new Error('Body too large'), { status: 413 });
 
-/** Maps a URL path to a file under ROOT, only for index.html, css/ and js/. Returns null if not allowed. */
-function resolvePublicFile(urlPath) {
-  let decoded;
-  try { decoded = decodeURIComponent(urlPath); } catch { return null; }
-  if (decoded.includes('\0')) return null;
-  const rel = decoded === '/' ? 'index.html' : decoded.replace(/^\/+/, '');
-  const full = path.resolve(ROOT, rel);
-  if (!full.startsWith(ROOT + path.sep)) return null;
-  const top = path.relative(ROOT, full).split(path.sep)[0];
-  if (rel !== 'index.html' && !PUBLIC_DIRS.has(top)) return null;
-  return full;
-}
-
+/** Reads a request body as text, rejecting early once it exceeds MAX_BODY bytes. */
 function readBody(req) {
   return new Promise((resolve, reject) => {
     const declared = Number(req.headers['content-length']);
     if (Number.isFinite(declared) && declared > MAX_BODY) {
-      reject(Object.assign(new Error('Body too large'), { status: 413 }));
+      reject(tooLarge());
       req.resume();
       return;
     }
-    let size = 0, tooBig = false; const chunks = [];
-    req.on('data', (c) => {
-      if (tooBig) return;
-      size += c.length;
-      if (size > MAX_BODY) { tooBig = true; chunks.length = 0; reject(Object.assign(new Error('Body too large'), { status: 413 })); return; }
-      chunks.push(c);
+    const chunks = [];
+    let size = 0;
+    let settled = false;
+    const settle = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      fn(value);
+    };
+    req.on('data', (chunk) => {
+      if (settled) return;
+      size += chunk.length;
+      if (size > MAX_BODY) {
+        chunks.length = 0;
+        settle(reject, tooLarge());
+        return;
+      }
+      chunks.push(chunk);
     });
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-    req.on('error', reject);
+    req.on('end', () => settle(resolve, Buffer.concat(chunks).toString('utf8')));
+    req.on('error', (error) => settle(reject, error));
   });
 }
 
-function createApp({ env = process.env, ask = S.askAI, now = Date.now } = {}) {
-  const hits = new Map();
-  const limited = (ip) => {
-    const t = now();
-    for (const [key, entry] of hits) {
-      if (t >= entry.reset) hits.delete(key);
-    }
-    const h = hits.get(ip);
-    if (!h || t >= h.reset) { hits.set(ip, { count: 1, reset: t + RATE.windowMs }); return false; }
-    h.count += 1; return h.count > RATE.max;
+const isPlainObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * Parses and validates the JSON body of POST /api/routine.
+ * @returns {Promise<{profile?:object, status?:number, error?:string}>}
+ */
+async function readProfile(req) {
+  let body;
+  try {
+    body = JSON.parse(await readBody(req));
+  } catch (error) {
+    return error.status === 413 ? { status: 413, error: 'Request too large.' } : { status: 400, error: 'Invalid JSON.' };
+  }
+  if (!body || !isPlainObject(body.profile)) return { status: 400, error: 'Missing profile.' };
+  return { profile: body.profile };
+}
+
+/** Creates the HTTP server. Options are injectable so tests can fake the environment, AI and clock. */
+function createApp({ env = process.env, ask = askAI, now = Date.now } = {}) {
+  const isLimited = createRateLimiter({ ...RATE, now });
+  const serveStatic = createStaticHandler();
+  const trustProxy = env.TRUST_PROXY === '1';
+
+  const clientKey = (req) => {
+    const forwarded = trustProxy ? String(req.headers['x-forwarded-for'] || '').split(',').pop().trim() : '';
+    return forwarded || req.socket.remoteAddress || 'unknown';
   };
+  const isHttps = (req) => Boolean(req.socket.encrypted) || (trustProxy && req.headers['x-forwarded-proto'] === 'https');
 
   async function routine(req, res) {
-    if (limited(req.socket.remoteAddress || 'unknown')) return sendJson(res, 429, { error: 'Too many requests. Try again in a minute.' });
-    if (!String(req.headers['content-type'] || '').startsWith('application/json')) return sendJson(res, 415, { error: 'Send JSON.' });
-    let body;
-    try { body = JSON.parse(await readBody(req)); } catch (e) { return sendJson(res, e.status || 400, { error: e.status === 413 ? 'Request too large.' : 'Invalid JSON.' }); }
-    if (!body || typeof body.profile !== 'object' || body.profile === null) return sendJson(res, 400, { error: 'Missing profile.' });
+    if (isLimited(clientKey(req))) return sendJson(res, 429, { error: 'Too many requests. Try again in a minute.' });
+    if (!isJsonRequest(req)) return sendJson(res, 415, { error: 'Send JSON.' });
+
+    const parsed = await readProfile(req);
+    if (parsed.error) return sendJson(res, parsed.status, { error: parsed.error });
     if (!env.AI_ENDPOINT || !env.AI_API_KEY) return sendJson(res, 503, { error: 'AI is not configured on this server.' });
+
     try {
-      const prompt = S.buildPrompt(S.buildPlan(body.profile));
+      const prompt = Core.buildPrompt(Core.buildPlan(parsed.profile));
       const text = await ask({ endpoint: env.AI_ENDPOINT, apiKey: env.AI_API_KEY, model: env.AI_MODEL, prompt });
+      if (typeof text !== 'string' || !text.trim()) throw new Error('AI service returned an empty answer.');
       return sendJson(res, 200, { text });
     } catch {
       return sendJson(res, 502, { error: 'AI service unavailable.' });
@@ -91,30 +100,44 @@ function createApp({ env = process.env, ask = S.askAI, now = Date.now } = {}) {
   }
 
   return http.createServer((req, res) => {
+    if (isHttps(req)) res.setHeader('Strict-Transport-Security', HSTS);
     let url;
     try {
       url = new URL(req.url, 'http://localhost');
     } catch {
       return send(res, 400, 'Bad request');
     }
+    if (url.pathname === '/healthz') return sendJson(res, 200, { status: 'ok' });
     if (url.pathname === '/api/routine') {
       if (req.method !== 'POST') return send(res, 405, 'Method not allowed', { Allow: 'POST' });
       return routine(req, res);
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed', { Allow: 'GET, HEAD' });
-    const file = resolvePublicFile(url.pathname);
-    if (!file) return send(res, 404, 'Not found');
-    fs.readFile(file, (err, data) => {
-      if (err) return send(res, 404, 'Not found');
-      const type = TYPES[path.extname(file)] || 'application/octet-stream';
-      send(res, 200, req.method === 'HEAD' ? '' : data, { 'Content-Type': type, 'Cache-Control': file.endsWith('.html') ? 'no-cache' : 'public, max-age=3600' });
-    });
+    return serveStatic(req, res, url.pathname);
   });
 }
 
-if (require.main === module) {
+function start() {
   const port = Number(process.env.PORT) || 3000;
-  createApp().listen(port, () => console.log(`Smog Companion running at http://localhost:${port}`));
+  const server = createApp();
+  server.headersTimeout = TIMEOUTS.headersMs;
+  server.requestTimeout = TIMEOUTS.requestMs;
+  server.keepAliveTimeout = TIMEOUTS.keepAliveMs;
+  server.on('error', (error) => {
+    const reason = error.code === 'EADDRINUSE' ? `Port ${port} is already in use. Set PORT to use a different port.` : `Server failed to start: ${error.message}`;
+    console.error(reason);
+    process.exitCode = 1;
+  });
+  server.listen(port, () => console.log(`Smog Companion running at http://localhost:${port}`));
+
+  const shutdown = () => {
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 5000).unref();
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
+
+if (require.main === module) start();
 
 module.exports = { createApp, resolvePublicFile };

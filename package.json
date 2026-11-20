@@ -1,15 +1,24 @@
 {
   "name": "smog-companion",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Live air quality and a clean-air planner for winter smog, with a secure AI proxy.",
   "private": true,
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node server.js",
     "lint": "eslint .",
-    "test": "node tests/tests.js && node --test tests/dom.test.js tests/server.test.js",
+    "test": "node --test tests/core.test.js tests/data.test.js tests/air-api.test.js tests/ai.test.js tests/rate-limit.test.js tests/views.test.js tests/css.test.js tests/dom.test.js tests/server.test.js tests/start.test.js",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include=js/**/*.js --test-coverage-include=lib/**/*.js --test-coverage-include=server.js tests/core.test.js tests/data.test.js tests/air-api.test.js tests/ai.test.js tests/rate-limit.test.js tests/views.test.js tests/css.test.js tests/dom.test.js tests/server.test.js tests/start.test.js",
     "check": "npm run lint && npm test"
   },
-  "devDependencies": { "@eslint/js": "^9.0.0", "axe-core": "^4.10.0", "eslint": "^9.0.0", "globals": "^15.0.0", "jsdom": "^25.0.0" },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "axe-core": "^4.10.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "jsdom": "^25.0.0"
+  },
   "license": "MIT"
 }

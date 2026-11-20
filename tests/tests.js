@@ -16,6 +16,7 @@ const ids = (plan) => plan.actions.map((a) => a.id);
     assert.strictEqual(S.parseAqi(9999), 500);
     assert.strictEqual(S.parseAqi('abc'), null);
     assert.strictEqual(S.parseAqi(''), null);
+    assert.strictEqual(S.parseAqi('   '), null);
     assert.strictEqual(S.parseAqi(NaN), null);
   });
 
@@ -43,6 +44,7 @@ const ids = (plan) => plan.actions.map((a) => a.id);
     assert.strictEqual(p.purifier, 'no');
     assert.strictEqual(p.aqiIsLive, false);
     assert.doesNotThrow(() => S.normalizeProfile());
+    assert.doesNotThrow(() => S.normalizeProfile([]));
   });
 
   await test('normalizeProfile does not treat string flags as consent', () => {
