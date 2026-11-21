@@ -24,7 +24,7 @@
     "eslint": "^9.0.0",
     "eslint-plugin-jsdoc": "^50.0.0",
     "globals": "^15.0.0",
-    "jsdom": "^25.0.0",
+    "jsdom": "^31.0.1",
     "prettier": "^3.0.0",
     "typescript": "^5.7.0"
   },
