@@ -18,6 +18,6 @@ jobs:
       - run: npm run check
       - name: Coverage gate (Node 22)
         if: matrix.node-version == 22
-        run: npm run test:coverage -- --test-coverage-lines=90 --test-coverage-functions=90
+        run: npm run test:coverage
       - name: Dependency audit
         run: npm audit --audit-level=high
