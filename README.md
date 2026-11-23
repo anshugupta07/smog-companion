@@ -38,8 +38,9 @@ The front end is also static: host `index.html`, `css/` and `js/` on GitHub Page
 ## Quality checks
 
 ```
-npm run check          # eslint + all tests
-npm run test:coverage  # same tests with a coverage report (about 99% of lines)
+npm run check          # eslint + type check (tsc) + Prettier + all tests
+npm run format         # auto-format everything with Prettier
+npm run test:coverage  # tests with a coverage report and thresholds (about 99% of lines)
 ```
 
 - Unit tests: AQI bands, rules, sanitising, plan and routine (`core`, `data`), live-data layer with mocked network (`air-api`), AI adapter (`ai`), rate limiter, views
@@ -52,17 +53,24 @@ npm run test:coverage  # same tests with a coverage report (about 99% of lines)
 
 ```
 index.html, css/styles.css     page and mobile-first styles
-js/data.js                     static data: AQI bands, advice rules, world places
+js/constants.js, js/errors.js  shared constants and named error classes
+js/coordinates.js              coordinate validation (browser and server)
+js/data.js, js/content/        advice rules and bands; all wording lives in content/ (en.js, messages.js)
 js/app.js                      pure logic: parse, sanitise, plan, routine, AI prompt
-js/air-api.js                  Open-Meteo geocoding and AQI with cache and request merging
-js/ui.js, js/views.js          DOM helpers and view builders (text only, no innerHTML)
-js/main.js                     page wiring
-server.js                      routing for the static server and AI proxy
-lib/                           security headers, rate limiter, static files, AI adapter (never served)
+js/air-api.js                  Open-Meteo and station readings with cache and request merging
+js/dom.js, js/ui.js            typed element lookup and DOM helpers (text only, no innerHTML)
+js/views.js                    view builders
+js/features/                   one module per feature (haze, place search, world board, hero search, planner, AI)
+js/main.js                     createApp(deps): builds the dependencies and starts every feature
+server.js                      routing for the static server, AI proxy and station route
+lib/                           security headers, rate limiter, static files, body reader, AI and station clients
+types/globals.d.ts             shared types for the JSDoc annotations
 tests/                         node:test suites
 ```
 
-Browser and Node code use native ES modules. Browser integration tests run the real page in jsdom through the exported `createApp(deps)` factory, with no runtime bundler or build step.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the pieces fit together and [CONTRIBUTING.md](CONTRIBUTING.md) before changing code.
+
+Browser and Node code use native ES modules and JSDoc types checked by `tsc` in strict mode, with no runtime bundler or build step. Browser integration tests run the real page in jsdom through the exported `createApp(deps)` factory.
 
 ## Performance
 
@@ -74,7 +82,7 @@ Live data comes from Open-Meteo (geocoding and air quality, no API key). AQI is 
 
 ## Security and privacy
 
-Strict Content Security Policy (network calls limited to the two Open-Meteo hosts, no inline script or style), security headers including COOP/CORP/COEP and HSTS behind HTTPS, whitelisted and sanitised inputs, no innerHTML, only `index.html`, `css/` and `js/` are served, request size limit, bounded rate limiter, server timeouts and generic error messages. Location is used only when you press "Use my location", rounded to about 1 km, and sent only to Open-Meteo. Nothing is stored.
+Strict Content Security Policy (network calls limited to the two Open-Meteo hosts, no inline script or style), security headers including COOP/CORP/COEP and HSTS behind HTTPS, whitelisted and sanitised inputs, no innerHTML, only `index.html`, `css/` and `js/` are served, request size limit, bounded rate limiter, server timeouts and generic error messages. Location is used only when you press "Use my location" and is rounded to about 1 km first. The rounded coordinates go to Open-Meteo and to this site's own `/api/aqi` route, which forwards them to the station provider only if you configured `WAQI_API_TOKEN`. Nothing is stored.
 
 ## Accessibility
 

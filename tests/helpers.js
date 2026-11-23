@@ -35,7 +35,9 @@ function fakeFetch(url) {
   }
   if (url.includes("air-quality-api")) {
     const count = url.match(/latitude=([^&]*)/)[1].split(",").length;
-    if (count === 1) return json(reading);
+    if (count === 1) {
+      return json(reading);
+    }
     return json(
       Array.from({ length: count }, (_, i) => ({
         current: { ...reading.current, us_aqi: 100 + i * 5 },
@@ -57,12 +59,7 @@ const closeAll = () => {
  * Loads the real index.html with its real scripts in jsdom.
  * @param {{fetchImpl?:Function, geolocation?:object, settle?:number, setup?:(window:object) => void}} [options]
  */
-async function loadPage({
-  fetchImpl = fakeFetch,
-  geolocation,
-  settle = 150,
-  setup,
-} = {}) {
+async function loadPage({ fetchImpl = fakeFetch, geolocation, settle = 150, setup } = {}) {
   const dom = await JSDOM.fromFile(path.join(ROOT, "index.html"), {
     runScripts: "outside-only",
     resources: "usable",
@@ -75,13 +72,13 @@ async function loadPage({
           value: geolocation,
         });
       }
-      if (setup) setup(window);
+      if (setup) {
+        setup(window);
+      }
     },
   });
   if (dom.window.document.readyState !== "complete") {
-    await new Promise((resolve) =>
-      dom.window.addEventListener("load", resolve),
-    );
+    await new Promise((resolve) => dom.window.addEventListener("load", resolve));
   }
   globalThis.document = dom.window.document;
   globalThis.window = dom.window;
@@ -97,9 +94,6 @@ async function loadPage({
   return dom.window;
 }
 
-const submit = (window, form) =>
-  form.dispatchEvent(
-    new window.Event("submit", { cancelable: true, bubbles: true }),
-  );
+const submit = (window, form) => form.dispatchEvent(new window.Event("submit", { cancelable: true, bubbles: true }));
 
 export { ROOT, json, tick, reading, fakeFetch, loadPage, closeAll, submit };

@@ -1,6 +1,6 @@
 {
   "name": "smog-companion",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "type": "module",
   "description": "Live air quality and a clean-air planner for winter smog, with a secure AI proxy.",
   "private": true,
@@ -13,20 +13,30 @@
     "typecheck": "tsc --noEmit",
     "format:check": "prettier --check .",
     "precommit": "npm run lint && npm run format:check",
-    "test": "node --test tests/core.test.js tests/data.test.js tests/air-api.test.js tests/ai.test.js tests/rate-limit.test.js tests/views.test.js tests/css.test.js tests/dom.test.js tests/server.test.js tests/start.test.js",
+    "test": "node --test tests/core.test.js tests/data.test.js tests/modules.test.js tests/features.test.js tests/lib.test.js tests/air-api.test.js tests/ai.test.js tests/rate-limit.test.js tests/views.test.js tests/css.test.js tests/dom.test.js tests/server.test.js tests/start.test.js",
     "check": "npm run lint && npm run typecheck && npm run format:check && npm test",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=95 --test-coverage-branches=90 --test-coverage-functions=95 --test-coverage-include=js/**/*.js --test-coverage-include=lib/**/*.js --test-coverage-include=server.js tests/core.test.js tests/data.test.js tests/air-api.test.js tests/ai.test.js tests/rate-limit.test.js tests/views.test.js tests/css.test.js tests/dom.test.js tests/server.test.js tests/start.test.js"
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=95 --test-coverage-branches=90 --test-coverage-functions=95 --test-coverage-include=js/**/*.js --test-coverage-include=lib/**/*.js --test-coverage-include=server.js tests/core.test.js tests/data.test.js tests/modules.test.js tests/features.test.js tests/lib.test.js tests/air-api.test.js tests/ai.test.js tests/rate-limit.test.js tests/views.test.js tests/css.test.js tests/dom.test.js tests/server.test.js tests/start.test.js",
+    "format": "prettier --write ."
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
     "@types/node": "^22.0.0",
     "axe-core": "^4.10.0",
     "eslint": "^9.0.0",
-    "eslint-plugin-jsdoc": "^50.0.0",
+    "eslint-plugin-jsdoc": "^50.8.0",
     "globals": "^15.0.0",
+    "jscpd": "^5.4.3",
     "jsdom": "^25.0.0",
     "prettier": "^3.0.0",
     "typescript": "^5.7.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "air-quality",
+    "aqi",
+    "smog",
+    "accessibility",
+    "vanilla-js",
+    "open-meteo"
+  ]
 }

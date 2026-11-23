@@ -1,50 +1,79 @@
+import { MESSAGES } from "../content/messages.js";
+import { errorMessage } from "./place-search.js";
 import { runWhenNearViewport } from "./request.js";
 
-/** Initializes the live world board.
+/**
+ * Hides the rows that do not match the filter text.
+ * @param {HTMLTableSectionElement} body
+ * @param {string} filterText
+ * @returns {void}
+ */
+export function filterRows(body, filterText) {
+  const query = filterText.trim().toLowerCase();
+  for (const row of Array.from(body.rows)) {
+    row.hidden = query !== "" && !(row.dataset.k ?? "").includes(query);
+  }
+}
+
+/**
+ * Initializes the live world board: loads when near the viewport, refreshes on request, filters by name.
  * @param {AppDependencies} deps
  * @returns {void}
  */
 export function initWorldBoard(deps) {
-  const { document: doc, window: windowObject, Api, Core, Views, UI } = deps;
-  const body = doc.getElementById("world-body");
-  const status = doc.getElementById("world-status");
-  const refresh = doc.getElementById("refresh");
-  const applyFilter = () => {
-    const query = doc.getElementById("filter").value.trim().toLowerCase();
-    Array.from(body.rows).forEach((row) => {
-      row.hidden = query !== "" && !row.dataset.k.includes(query);
-    });
-  };
+  const { $, window: windowObject, Api, Core, Views, UI, worldPlaces } = deps;
+  const body = $("world-body", "tbody");
+  const status = $("world-status");
+  const refresh = $("refresh", "button");
+  const filter = $("filter", "input");
+
+  /** @param {Place} place */
   const usePlace = (place) => {
-    deps.placeSearch.selectPlace(place);
-    doc.getElementById("planner").scrollIntoView();
-    doc.getElementById("place").focus();
+    deps.placeSearch?.selectPlace(place);
+    $("planner").scrollIntoView();
+    $("place").focus();
   };
-  const load = async () => {
+
+  /**
+   * @param {string} message
+   * @param {boolean} [isError]
+   * @returns {void}
+   */
+  const setStatus = (message, isError = false) => UI.setStatus(status, message, isError);
+
+  /** Loads (or reloads) every world place and renders the sorted rows. */
+  async function load() {
     UI.setBusy(refresh, true);
-    status.textContent = "Loading live data...";
-    status.className = "hint";
+    setStatus(MESSAGES.worldLoading);
     try {
-      const readings = (await Api.fetchAqiMany(deps.worldPlaces))
-        .filter((place) => place.reading)
-        .sort((a, b) => b.reading.aqi - a.reading.aqi);
+      const withReadings = (await Api.fetchAqiMany(worldPlaces)).filter(hasReading);
+      withReadings.sort((a, b) => b.reading.aqi - a.reading.aqi);
       body.replaceChildren(
-        ...readings.map((place) =>
-          Views.worldRow(place, Core.aqiCategory(place.reading.aqi), usePlace),
-        ),
+        ...withReadings.map((place) => Views.worldRow(place, Core.aqiCategory(place.reading.aqi), usePlace)),
       );
-      applyFilter();
-      status.textContent = readings.length
-        ? `${readings.length} places, updated ${new Date().toLocaleTimeString()}.`
-        : "No data returned.";
+      filterRows(body, filter.value);
+      setStatus(
+        withReadings.length
+          ? MESSAGES.worldUpdated(withReadings.length, new Date().toLocaleTimeString())
+          : MESSAGES.worldEmpty,
+      );
     } catch (error) {
-      status.textContent = `Could not load live data (${error.message})`;
-      status.className = "error";
+      setStatus(MESSAGES.worldFailed(errorMessage(error)), true);
     } finally {
       UI.setBusy(refresh, false);
     }
-  };
-  doc.getElementById("filter").addEventListener("input", applyFilter);
+  }
+
+  filter.addEventListener("input", () => filterRows(body, filter.value));
   refresh.addEventListener("click", load);
-  runWhenNearViewport(windowObject, doc.getElementById("world"), load);
+  runWhenNearViewport(windowObject, $("world"), load);
+}
+
+/**
+ * Narrows a place to one that has a reading.
+ * @param {PlaceWithReading} place
+ * @returns {place is PlaceWithReading & {reading: Reading}}
+ */
+function hasReading(place) {
+  return place.reading !== null;
 }

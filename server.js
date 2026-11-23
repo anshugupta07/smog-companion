@@ -2,265 +2,228 @@
  * Zero-dependency static server + AI proxy.
  *   npm start                                                         serves the site on http://localhost:3000
  *   AI_ENDPOINT=https://... AI_API_KEY=... AI_MODEL=... npm start     enables POST /api/routine
- * The AI key stays on the server and is never sent to the browser.
+ *   WAQI_API_TOKEN=... npm start                                      enables GET /api/aqi (nearest station)
+ * Keys stay on the server and are never sent to the browser.
  * Set TRUST_PROXY=1 when running behind one reverse proxy (real client IP for rate limits, HSTS).
  */
 import http from "node:http";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import * as Core from "./js/app.js";
+import { buildPlan, buildPrompt } from "./js/app.js";
+import { HTTP_STATUS as HTTP } from "./js/constants.js";
+import { isValidCoordinate } from "./js/coordinates.js";
+import { ApiError } from "./js/errors.js";
 import { askAI } from "./lib/ai.js";
-import { send, sendJson, isJsonRequest } from "./lib/http.js";
+import { readBody } from "./lib/body.js";
+import { DEFAULT_PORT, MAX_BODY_BYTES, RATE_LIMIT, SERVER_TIMEOUT_MS, SHUTDOWN_GRACE_MS } from "./lib/config.js";
+import { isJsonRequest, send, sendJson } from "./lib/http.js";
 import { createRateLimiter } from "./lib/rate-limit.js";
-import { createStaticHandler, resolvePublicFile } from "./lib/static.js";
 import { HSTS } from "./lib/security.js";
+import { createStaticHandler, resolvePublicFile } from "./lib/static.js";
+import { fetchStationReading } from "./lib/station.js";
 
-const MAX_BODY = 4096;
-const RATE = { windowMs: 60000, max: 10 };
-const TIMEOUTS = { headersMs: 10000, requestMs: 15000, keepAliveMs: 5000 };
+/**
+ * @typedef {import("node:http").IncomingMessage} Request
+ * @typedef {import("node:http").ServerResponse} Response
+ * @typedef {{
+ *   env: Record<string, string|undefined>,
+ *   clientKey: (req: Request) => string,
+ *   isHttps: (req: Request) => boolean,
+ *   isRoutineLimited: (key: string) => boolean,
+ *   isStationLimited: (key: string) => boolean,
+ * }} ServerContext
+ */
 
-const tooLarge = () =>
-  Object.assign(new Error("Body too large"), { status: 413 });
-
-/** Reads a request body as text, rejecting early once it exceeds MAX_BODY bytes. */
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    const declared = Number(req.headers["content-length"]);
-    if (Number.isFinite(declared) && declared > MAX_BODY) {
-      reject(tooLarge());
-      req.resume();
-      return;
-    }
-    const chunks = [];
-    let size = 0;
-    let settled = false;
-    const settle = (fn, value) => {
-      if (settled) return;
-      settled = true;
-      fn(value);
-    };
-    req.on("data", (chunk) => {
-      if (settled) return;
-      size += chunk.length;
-      if (size > MAX_BODY) {
-        chunks.length = 0;
-        settle(reject, tooLarge());
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on("end", () =>
-      settle(resolve, Buffer.concat(chunks).toString("utf8")),
-    );
-    req.on("error", (error) => settle(reject, error));
-  });
-}
-
-const isPlainObject = (value) =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
+/**
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
+const isPlainObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
 /**
  * Parses and validates the JSON body of POST /api/routine.
- * @returns {Promise<{profile?:object, status?:number, error?:string}>}
+ * @param {Request} req
+ * @returns {Promise<{profile: Record<string, unknown>}|{status: number, error: string}>}
  */
 async function readProfile(req) {
   let body;
   try {
-    body = JSON.parse(await readBody(req));
+    body = JSON.parse(await readBody(req, MAX_BODY_BYTES));
   } catch (error) {
-    return error.status === 413
-      ? { status: 413, error: "Request too large." }
-      : { status: 400, error: "Invalid JSON." };
+    const tooLarge = error instanceof ApiError && error.status === HTTP.payloadTooLarge;
+    return tooLarge
+      ? { status: HTTP.payloadTooLarge, error: "Request too large." }
+      : { status: HTTP.badRequest, error: "Invalid JSON." };
   }
-  if (!body || !isPlainObject(body.profile)) {
-    return { status: 400, error: "Missing profile." };
+  if (!isPlainObject(body) || !isPlainObject(body.profile)) {
+    return { status: HTTP.badRequest, error: "Missing profile." };
   }
   return { profile: body.profile };
 }
 
-function validCoordinates(lat, lon) {
-  return (
-    Number.isFinite(lat) &&
-    Number.isFinite(lon) &&
-    Math.abs(lat) <= 90 &&
-    Math.abs(lon) <= 180
-  );
-}
-
-function stationParticle(data, pollutant) {
-  const value =
-    data.iaqi && data.iaqi[pollutant] ? data.iaqi[pollutant].v : null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function stationReading(body) {
-  if (
-    !body ||
-    body.status !== "ok" ||
-    !body.data ||
-    !Number.isFinite(Number(body.data.aqi))
-  ) {
-    return null;
+/**
+ * Reasons to refuse a routine request before reading its body, or null to carry on.
+ * @param {ServerContext} ctx
+ * @param {Request} req
+ * @returns {{status: number, error: string}|null}
+ */
+function routineRejection(ctx, req) {
+  if (ctx.isRoutineLimited(ctx.clientKey(req))) {
+    return { status: HTTP.tooManyRequests, error: "Too many requests. Try again in a minute." };
   }
-  const data = body.data;
-  return {
-    aqi: Math.max(0, Math.min(500, Math.round(Number(data.aqi)))),
-    pm25: stationParticle(data, "pm25"),
-    pm10: stationParticle(data, "pm10"),
-    time: String((data.time && (data.time.iso || data.time.s)) || "").slice(
-      0,
-      30,
-    ),
-    source: "station",
-    station: String((data.city && data.city.name) || "").slice(0, 80),
-  };
+  if (!isJsonRequest(req)) {
+    return { status: HTTP.unsupportedMediaType, error: "Send JSON." };
+  }
+  return null;
 }
 
-/** Creates the HTTP server. Options are injectable so tests can fake the environment, AI and clock. */
-function createApp({
-  env = process.env,
-  ask = askAI,
-  now = Date.now,
-  providerFetch = fetch,
-} = {}) {
-  const isLimited = createRateLimiter({ ...RATE, now });
-  const isAqiLimited = createRateLimiter({ windowMs: 60000, max: 30, now });
-  const serveStatic = createStaticHandler();
-  const trustProxy = env.TRUST_PROXY === "1";
-
-  const clientKey = (req) => {
-    const forwarded = trustProxy
-      ? String(req.headers["x-forwarded-for"] || "")
-          .split(",")
-          .pop()
-          .trim()
-      : "";
-    return forwarded || req.socket.remoteAddress || "unknown";
-  };
-  const isHttps = (req) =>
-    Boolean(req.socket.encrypted) ||
-    (trustProxy && req.headers["x-forwarded-proto"] === "https");
-
-  async function routine(req, res) {
-    if (isLimited(clientKey(req))) {
-      return sendJson(res, 429, {
-        error: "Too many requests. Try again in a minute.",
-      });
-    }
-    if (!isJsonRequest(req)) return sendJson(res, 415, { error: "Send JSON." });
-
-    const parsed = await readProfile(req);
-    if (parsed.error) {
+/**
+ * Creates the POST /api/routine handler: AI-written routine for a whitelisted profile.
+ * @param {ServerContext} ctx
+ * @param {typeof askAI} ask
+ * @returns {(req: Request, res: Response) => Promise<void>}
+ */
+function createRoutineHandler(ctx, ask) {
+  return async (req, res) => {
+    const rejection = routineRejection(ctx, req);
+    const parsed = rejection ?? (await readProfile(req));
+    if ("error" in parsed) {
       return sendJson(res, parsed.status, { error: parsed.error });
     }
-    if (!env.AI_ENDPOINT || !env.AI_API_KEY) {
-      return sendJson(res, 503, {
-        error: "AI is not configured on this server.",
-      });
+    const { AI_ENDPOINT: endpoint, AI_API_KEY: apiKey, AI_MODEL: model } = ctx.env;
+    if (!endpoint || !apiKey) {
+      return sendJson(res, HTTP.unavailable, { error: "AI is not configured on this server." });
     }
-
     try {
-      const prompt = Core.buildPrompt(Core.buildPlan(parsed.profile));
-      const text = await ask({
-        endpoint: env.AI_ENDPOINT,
-        apiKey: env.AI_API_KEY,
-        model: env.AI_MODEL,
-        prompt,
-      });
+      const prompt = buildPrompt(buildPlan(parsed.profile));
+      const text = await ask({ endpoint, apiKey, model, prompt });
       if (typeof text !== "string" || !text.trim()) {
-        throw new Error("AI service returned an empty answer.");
+        throw new ApiError("AI service returned an empty answer.");
       }
-      return sendJson(res, 200, { text });
+      return sendJson(res, HTTP.ok, { text });
     } catch {
-      return sendJson(res, 502, { error: "AI service unavailable." });
+      return sendJson(res, HTTP.badGateway, { error: "AI service unavailable." });
     }
-  }
+  };
+}
 
-  async function stationAqi(req, res) {
-    if (isAqiLimited(clientKey(req))) {
-      return sendJson(res, 429, {
-        error: "Too many AQI requests. Try again in a minute.",
-      });
-    }
-    if (!env.WAQI_API_TOKEN) {
-      return sendJson(res, 503, {
-        error: "Monitoring-station provider is not configured.",
-      });
-    }
+/**
+ * Message for a failed station lookup, without leaking provider details.
+ * @param {unknown} error
+ * @returns {string}
+ */
+function stationFailureMessage(error) {
+  const timedOut = error instanceof ApiError && error.message.includes("timed out");
+  return timedOut ? "Monitoring-station provider timed out." : "Monitoring-station provider unavailable.";
+}
 
-    const url = new URL(req.url, "http://localhost");
+/**
+ * Creates the GET /api/aqi handler: nearest monitoring-station reading.
+ * @param {ServerContext} ctx
+ * @param {typeof fetch} providerFetch
+ * @returns {(req: Request, res: Response, url: URL) => Promise<void>}
+ */
+function createStationHandler(ctx, providerFetch) {
+  return async (req, res, url) => {
+    if (ctx.isStationLimited(ctx.clientKey(req))) {
+      return sendJson(res, HTTP.tooManyRequests, { error: "Too many AQI requests. Try again in a minute." });
+    }
+    const token = ctx.env.WAQI_API_TOKEN;
+    if (!token) {
+      return sendJson(res, HTTP.unavailable, { error: "Monitoring-station provider is not configured." });
+    }
     const lat = Number(url.searchParams.get("lat"));
     const lon = Number(url.searchParams.get("lon"));
-    if (!validCoordinates(lat, lon)) {
-      return sendJson(res, 400, {
-        error: "Valid latitude and longitude are required.",
-      });
+    if (!isValidCoordinate(lat, lon)) {
+      return sendJson(res, HTTP.badRequest, { error: "Valid latitude and longitude are required." });
     }
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10000);
     try {
-      const providerUrl = `https://api.waqi.info/feed/geo:${lat};${lon}/?token=${encodeURIComponent(env.WAQI_API_TOKEN)}`;
-      const provider = await providerFetch(providerUrl, {
-        signal: controller.signal,
-      });
-      if (!provider.ok) throw new Error(`Provider returned ${provider.status}`);
-      const body = await provider.json();
-      const reading = stationReading(body);
-      if (!reading) throw new Error("No station reading");
-      return sendJson(res, 200, { reading });
+      const reading = await fetchStationReading({ lat, lon, token, fetchImpl: providerFetch });
+      return sendJson(res, HTTP.ok, { reading });
     } catch (error) {
-      if (error.name === "AbortError") {
-        return sendJson(res, 502, {
-          error: "Monitoring-station provider timed out.",
-        });
-      }
-      return sendJson(res, 502, {
-        error: "Monitoring-station provider unavailable.",
-      });
-    } finally {
-      clearTimeout(timer);
+      return sendJson(res, HTTP.badGateway, { error: stationFailureMessage(error) });
     }
-  }
+  };
+}
+
+/**
+ * Builds the per-server helpers that need configuration: client identity, HTTPS detection, rate limiters.
+ * @param {Record<string, string|undefined>} env
+ * @param {() => number} now
+ * @returns {ServerContext}
+ */
+function createContext(env, now) {
+  const trustProxy = env.TRUST_PROXY === "1";
+  return {
+    env,
+    isRoutineLimited: createRateLimiter({ ...RATE_LIMIT.routine, now }),
+    isStationLimited: createRateLimiter({ ...RATE_LIMIT.station, now }),
+    clientKey(req) {
+      const forwarded = trustProxy
+        ? String(req.headers["x-forwarded-for"] || "")
+            .split(",")
+            .pop()
+            ?.trim()
+        : "";
+      return forwarded || req.socket.remoteAddress || "unknown";
+    },
+    isHttps(req) {
+      return "encrypted" in req.socket || (trustProxy && req.headers["x-forwarded-proto"] === "https");
+    },
+  };
+}
+
+/**
+ * Sends 405 with the methods the route does allow.
+ * @param {Response} res
+ * @param {string[]} methods
+ * @returns {void}
+ */
+function methodNotAllowed(res, methods) {
+  send(res, HTTP.methodNotAllowed, "Method not allowed", { Allow: methods.join(", ") });
+}
+
+/**
+ * Creates the HTTP server. Options are injectable so tests can fake the environment, AI, clock and providers.
+ * @param {{env?: Record<string, string|undefined>, ask?: typeof askAI, now?: () => number, providerFetch?: typeof fetch}} [options]
+ * @returns {import("node:http").Server}
+ */
+function createApp({ env = process.env, ask = askAI, now = Date.now, providerFetch = fetch } = {}) {
+  const ctx = createContext(env, now);
+  const serveStatic = createStaticHandler();
+  /** @type {Record<string, {methods: string[], run: (req: Request, res: Response, url: URL) => unknown}>} */
+  const routes = {
+    "/healthz": { methods: ["GET", "HEAD"], run: (_req, res) => sendJson(res, HTTP.ok, { status: "ok" }) },
+    "/api/routine": { methods: ["POST"], run: createRoutineHandler(ctx, ask) },
+    "/api/aqi": { methods: ["GET"], run: createStationHandler(ctx, providerFetch) },
+  };
 
   return http.createServer((req, res) => {
-    if (isHttps(req)) res.setHeader("Strict-Transport-Security", HSTS);
+    if (ctx.isHttps(req)) {
+      res.setHeader("Strict-Transport-Security", HSTS);
+    }
     let url;
     try {
-      url = new URL(req.url, "http://localhost");
+      url = new URL(req.url ?? "/", "http://localhost");
     } catch {
-      return send(res, 400, "Bad request");
+      return send(res, HTTP.badRequest, "Bad request");
     }
-    if (url.pathname === "/healthz") {
-      return sendJson(res, 200, { status: "ok" });
+    const route = routes[url.pathname] ?? { methods: ["GET", "HEAD"], run: () => serveStatic(req, res, url.pathname) };
+    if (!route.methods.includes(req.method ?? "")) {
+      return methodNotAllowed(res, route.methods);
     }
-    if (url.pathname === "/api/routine") {
-      if (req.method !== "POST") {
-        return send(res, 405, "Method not allowed", { Allow: "POST" });
-      }
-      return routine(req, res);
-    }
-    if (url.pathname === "/api/aqi") {
-      if (req.method !== "GET") {
-        return send(res, 405, "Method not allowed", { Allow: "GET" });
-      }
-      return stationAqi(req, res);
-    }
-    if (req.method !== "GET" && req.method !== "HEAD") {
-      return send(res, 405, "Method not allowed", { Allow: "GET, HEAD" });
-    }
-    return serveStatic(req, res, url.pathname);
+    return route.run(req, res, url);
   });
 }
 
+/** Starts the server on PORT and shuts it down gracefully on SIGTERM or SIGINT. */
 function start() {
-  const port = Number(process.env.PORT) || 3000;
+  const port = Number(process.env.PORT) || DEFAULT_PORT;
   const server = createApp();
-  server.headersTimeout = TIMEOUTS.headersMs;
-  server.requestTimeout = TIMEOUTS.requestMs;
-  server.keepAliveTimeout = TIMEOUTS.keepAliveMs;
-  server.on("error", (error) => {
+  server.headersTimeout = SERVER_TIMEOUT_MS.headers;
+  server.requestTimeout = SERVER_TIMEOUT_MS.request;
+  server.keepAliveTimeout = SERVER_TIMEOUT_MS.keepAlive;
+  server.on("error", (/** @type {NodeJS.ErrnoException} */ error) => {
     const reason =
       error.code === "EADDRINUSE"
         ? `Port ${port} is already in use. Set PORT to use a different port.`
@@ -268,23 +231,18 @@ function start() {
     console.error(reason);
     process.exitCode = 1;
   });
-  server.listen(port, () =>
-    console.log(`Smog Companion running at http://localhost:${port}`),
-  );
+  server.listen(port, () => console.log(`Smog Companion running at http://localhost:${port}`));
 
+  // Stop accepting connections, let in-flight requests finish, and force-exit only after a grace period.
   const shutdown = () => {
-    server.close();
-    process.exit(0);
-    setTimeout(() => process.exit(0), 5000).unref();
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), SHUTDOWN_GRACE_MS).unref();
   };
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
 }
 
-if (
-  process.argv[1] &&
-  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-) {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   start();
 }
 

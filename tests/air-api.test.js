@@ -1,4 +1,3 @@
-"use strict";
 import { test } from "node:test";
 import assert from "node:assert";
 import * as Api from "../js/air-api.js";
@@ -60,10 +59,7 @@ test("fetchAqi parses a reading and validates coordinates", async () => {
   assert.strictEqual(reading.pm10, 150);
   assert.strictEqual(reading.source, "model");
   await assert.rejects(Api.fetchAqi(200, 0), RangeError);
-  await assert.rejects(
-    Api.fetchAqi(1, 1, mock({ current: {} })),
-    /No air quality/,
-  );
+  await assert.rejects(Api.fetchAqi(1, 1, mock({ current: {} })), /No air quality/);
   await assert.rejects(Api.fetchAqi(1, 1, mock({}, false, 500)), /500/);
 });
 
@@ -94,26 +90,22 @@ test("fetchAqi prefers the server station provider when available", async () => 
       },
     );
   } finally {
-    if (previousWindow === undefined) delete globalThis.window;
-    else globalThis.window = previousWindow;
+    if (previousWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = previousWindow;
+    }
   }
 });
 
 test("fetchAqi reports missing particle readings as null", async () => {
-  const reading = await Api.fetchAqi(
-    1,
-    1,
-    mock({ current: { us_aqi: 90, time: "t" } }),
-  );
+  const reading = await Api.fetchAqi(1, 1, mock({ current: { us_aqi: 90, time: "t" } }));
   assert.strictEqual(reading.pm25, null);
   assert.strictEqual(reading.pm10, null);
 });
 
 test("fetchAqiMany returns one entry per place with null for missing data", async () => {
-  const fetchImpl = mock([
-    { current: { us_aqi: 300, pm2_5: 200, time: "t" } },
-    { current: {} },
-  ]);
+  const fetchImpl = mock([{ current: { us_aqi: 300, pm2_5: 200, time: "t" } }, { current: {} }]);
   const out = await Api.fetchAqiMany(
     [
       { name: "A", lat: 1, lon: 2 },
@@ -129,10 +121,7 @@ test("fetchAqiMany returns one entry per place with null for missing data", asyn
 });
 
 test("fetchAqiMany accepts the single-object response shape", async () => {
-  const out = await Api.fetchAqiMany(
-    [{ name: "A", lat: 1, lon: 2 }],
-    mock({ current: { us_aqi: 55, time: "t" } }),
-  );
+  const out = await Api.fetchAqiMany([{ name: "A", lat: 1, lon: 2 }], mock({ current: { us_aqi: 55, time: "t" } }));
   assert.strictEqual(out[0].reading.aqi, 55);
 });
 
@@ -203,9 +192,7 @@ test("failed requests are not cached and can be retried", async () => {
   await withGlobalFetch(
     async () => {
       calls++;
-      return calls === 1
-        ? { ok: false, status: 503 }
-        : okJson({ current: { us_aqi: 70, time: "t" } });
+      return calls === 1 ? { ok: false, status: 503 } : okJson({ current: { us_aqi: 70, time: "t" } });
     },
     async () => {
       await assert.rejects(Api.fetchAqi(12, 12), /503/);
@@ -219,9 +206,7 @@ test("slow requests are aborted by the timeout signal", async () => {
   await withGlobalFetch(
     (url, opts) =>
       new Promise((resolve, reject) => {
-        opts.signal.addEventListener("abort", () =>
-          reject(new Error("aborted")),
-        );
+        opts.signal.addEventListener("abort", () => reject(new Error("aborted")));
       }),
     async () => {
       const real = globalThis.setTimeout;
@@ -239,4 +224,31 @@ test("throws a clear error when fetch is unavailable", async () => {
   await withGlobalFetch(undefined, async () => {
     await assert.rejects(Api.fetchAqi(14, 14), /fetch is not available/);
   });
+});
+
+test("the station route is asked once, then skipped after the server says it has none", async () => {
+  const urls = [];
+  const original = globalThis.fetch;
+  const originalWindow = globalThis.window;
+  globalThis.window = {};
+  globalThis.fetch = async (url) => {
+    urls.push(String(url));
+    if (String(url).startsWith("/api/aqi")) {
+      return { ok: false, status: 503, json: async () => ({}) };
+    }
+    return okJson({ current: { us_aqi: 70, time: "t" } });
+  };
+  try {
+    Api.clearCache();
+    await Api.fetchAqi(31, 31);
+    await Api.fetchAqi(32, 32);
+    assert.strictEqual(urls.filter((url) => url.startsWith("/api/aqi")).length, 1);
+    Api.clearCache();
+    await Api.fetchAqi(33, 33);
+    assert.strictEqual(urls.filter((url) => url.startsWith("/api/aqi")).length, 2, "clearCache re-enables it");
+  } finally {
+    globalThis.fetch = original;
+    globalThis.window = originalWindow;
+    Api.clearCache();
+  }
 });

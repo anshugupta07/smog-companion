@@ -1,4 +1,3 @@
-"use strict";
 import { test } from "node:test";
 import assert from "node:assert";
 import http from "node:http";
@@ -12,34 +11,28 @@ import { CSP_DIRECTIVES } from "../lib/security.js";
 
 function start(opts) {
   return new Promise((resolve) => {
-    const s = createApp(opts).listen(0, "127.0.0.1", () =>
-      resolve({ s, port: s.address().port }),
-    );
+    const s = createApp(opts).listen(0, "127.0.0.1", () => resolve({ s, port: s.address().port }));
   });
 }
-function request(
-  port,
-  { method = "GET", path: requestPath = "/", headers = {}, body } = {},
-) {
+function request(port, { method = "GET", path: requestPath = "/", headers = {}, body } = {}) {
   return new Promise((resolve, reject) => {
-    const req = http.request(
-      { host: "127.0.0.1", port, method, path: requestPath, headers },
-      (res) => {
-        const chunks = [];
-        res.on("data", (c) => chunks.push(c));
-        res.on("end", () => {
-          const raw = Buffer.concat(chunks);
-          resolve({
-            status: res.statusCode,
-            headers: res.headers,
-            raw,
-            body: raw.toString("utf8"),
-          });
+    const req = http.request({ host: "127.0.0.1", port, method, path: requestPath, headers }, (res) => {
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => {
+        const raw = Buffer.concat(chunks);
+        resolve({
+          status: res.statusCode,
+          headers: res.headers,
+          raw,
+          body: raw.toString("utf8"),
         });
-      },
-    );
+      });
+    });
     req.on("error", reject);
-    if (body) req.write(body);
+    if (body) {
+      req.write(body);
+    }
     req.end();
   });
 }
@@ -114,14 +107,8 @@ test("POST /api/routine validates input", async () => {
     ).status,
     415,
   );
-  assert.strictEqual(
-    (await post(port, { profile: { city: "x".repeat(9000) } })).status,
-    413,
-  );
-  assert.strictEqual(
-    (await request(port, { path: "/api/routine" })).status,
-    405,
-  );
+  assert.strictEqual((await post(port, { profile: { city: "x".repeat(9000) } })).status, 413);
+  assert.strictEqual((await request(port, { path: "/api/routine" })).status, 405);
   s.close();
 });
 
@@ -207,10 +194,7 @@ test("GET /api/aqi validates coordinates and supports the nearest-station provid
     env: { WAQI_API_TOKEN: "station-secret" },
     providerFetch,
   });
-  assert.strictEqual(
-    (await request(port, { path: "/api/aqi?lat=999&lon=20" })).status,
-    400,
-  );
+  assert.strictEqual((await request(port, { path: "/api/aqi?lat=999&lon=20" })).status, 400);
   const r = await request(port, { path: "/api/aqi?lat=18.52&lon=73.85" });
   assert.strictEqual(r.status, 200);
   assert.deepStrictEqual(JSON.parse(r.body).reading, {
@@ -228,27 +212,23 @@ test("GET /api/aqi validates coordinates and supports the nearest-station provid
 
 test("GET /api/aqi reports missing configuration and provider failures", async () => {
   const missing = await start({ env: {} });
-  assert.strictEqual(
-    (await request(missing.port, { path: "/api/aqi?lat=1&lon=2" })).status,
-    503,
-  );
+  assert.strictEqual((await request(missing.port, { path: "/api/aqi?lat=1&lon=2" })).status, 503);
   missing.s.close();
 
   const broken = await start({
     env: { WAQI_API_TOKEN: "x" },
     providerFetch: async () => ({ ok: false, status: 503 }),
   });
-  assert.strictEqual(
-    (await request(broken.port, { path: "/api/aqi?lat=1&lon=2" })).status,
-    502,
-  );
+  assert.strictEqual((await request(broken.port, { path: "/api/aqi?lat=1&lon=2" })).status, 502);
   broken.s.close();
 });
 
 test("rate limit returns 429 after 10 requests a minute", async () => {
   const { s, port } = await start({ env: {}, now: () => 1000 });
   let last;
-  for (let i = 0; i < 11; i++) last = await post(port, { profile: {} });
+  for (let i = 0; i < 11; i++) {
+    last = await post(port, { profile: {} });
+  }
   assert.strictEqual(last.status, 429);
   s.close();
 });
@@ -257,14 +237,9 @@ test("the CSP only allows Open-Meteo for network calls and blocks plugins and fr
   const { s, port } = await start();
   const csp = (await request(port)).headers["content-security-policy"];
   assert.ok(
-    csp.includes(
-      "connect-src 'self' https://geocoding-api.open-meteo.com https://air-quality-api.open-meteo.com",
-    ),
+    csp.includes("connect-src 'self' https://geocoding-api.open-meteo.com https://air-quality-api.open-meteo.com"),
   );
-  assert.ok(
-    !/connect-src[^;]*\shttps:(\s|;|$)/.test(csp),
-    "no blanket https: allowance",
-  );
+  assert.ok(!/connect-src[^;]*\shttps:(\s|;|$)/.test(csp), "no blanket https: allowance");
   assert.ok(csp.includes("object-src 'none'"));
   assert.ok(csp.includes("frame-ancestors 'none'"));
   assert.ok(!csp.includes("unsafe-inline") && !csp.includes("unsafe-eval"));
@@ -272,13 +247,8 @@ test("the CSP only allows Open-Meteo for network calls and blocks plugins and fr
 });
 
 test("the CSP in index.html matches the server CSP (minus header-only directives)", () => {
-  const html = fs.readFileSync(
-    path.join(__dirname, "..", "index.html"),
-    "utf8",
-  );
-  const meta = html.match(
-    /<meta[\s\S]*?http-equiv="Content-Security-Policy"[\s\S]*?content="([^"]+)"/,
-  )[1];
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  const meta = html.match(/<meta[\s\S]*?http-equiv="Content-Security-Policy"[\s\S]*?content="([^"]+)"/)[1];
   const parsed = Object.fromEntries(
     meta
       .split(";")
@@ -302,20 +272,14 @@ test("static files are compressed with Brotli or gzip and decode to the original
     headers: { "Accept-Encoding": "gzip, br" },
   });
   assert.strictEqual(br.headers["content-encoding"], "br");
-  assert.strictEqual(
-    zlib.brotliDecompressSync(br.raw).toString("utf8"),
-    plain.body,
-  );
+  assert.strictEqual(zlib.brotliDecompressSync(br.raw).toString("utf8"), plain.body);
   const gz = await request(port, {
     path: "/css/styles.css",
     headers: { "Accept-Encoding": "gzip" },
   });
   assert.strictEqual(gz.headers["content-encoding"], "gzip");
   assert.strictEqual(zlib.gunzipSync(gz.raw).toString("utf8"), plain.body);
-  assert.ok(
-    br.raw.length < plain.raw.length / 2,
-    "compression should at least halve the CSS",
-  );
+  assert.ok(br.raw.length < plain.raw.length / 2, "compression should at least halve the CSS");
   assert.strictEqual(br.headers.vary, "Accept-Encoding");
   assert.strictEqual(Number(br.headers["content-length"]), br.raw.length);
   s.close();
@@ -352,14 +316,8 @@ test("ETag revalidation returns 304 with no body, and HEAD has no body", async (
 
 test("cache headers: HTML revalidates, assets are cached for an hour", async () => {
   const { s, port } = await start();
-  assert.strictEqual(
-    (await request(port)).headers["cache-control"],
-    "no-cache",
-  );
-  assert.match(
-    (await request(port, { path: "/js/main.js" })).headers["cache-control"],
-    /max-age=3600/,
-  );
+  assert.strictEqual((await request(port)).headers["cache-control"], "no-cache");
+  assert.match((await request(port, { path: "/js/main.js" })).headers["cache-control"], /max-age=3600/);
   s.close();
 });
 
@@ -397,10 +355,7 @@ test("HSTS is sent only for HTTPS behind a trusted proxy", async () => {
     headers: { "X-Forwarded-Proto": "https" },
   });
   assert.match(secure.headers["strict-transport-security"], /max-age=31536000/);
-  assert.strictEqual(
-    (await request(trusted.port)).headers["strict-transport-security"],
-    undefined,
-  );
+  assert.strictEqual((await request(trusted.port)).headers["strict-transport-security"], undefined);
   trusted.s.close();
   const untrusted = await start({ env: {} });
   assert.strictEqual(
@@ -426,22 +381,17 @@ test("rate limits use the real client IP only when the proxy is trusted", async 
       },
       body: '{"profile":{}}',
     });
-  for (let i = 0; i < 10; i++) await send("9.9.9.9");
+  for (let i = 0; i < 10; i++) {
+    await send("9.9.9.9");
+  }
   assert.strictEqual((await send("9.9.9.9")).status, 429);
-  assert.notStrictEqual(
-    (await send("8.8.8.8")).status,
-    429,
-    "a different client keeps its own allowance",
-  );
+  assert.notStrictEqual((await send("8.8.8.8")).status, 429, "a different client keeps its own allowance");
   trusted.s.close();
 });
 
 test("malformed request targets get a 400 and unknown routes a 404", async () => {
   const { s, port } = await start();
   assert.strictEqual((await request(port, { path: "/nope" })).status, 404);
-  assert.strictEqual(
-    (await request(port, { path: "/css/missing.css" })).status,
-    404,
-  );
+  assert.strictEqual((await request(port, { path: "/css/missing.css" })).status, 404);
   s.close();
 });

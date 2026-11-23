@@ -1,27 +1,32 @@
-const MAX_HAZE = 0.92;
-const BASE_HAZE = 0.08;
-const AQI_MAX = 500;
-const HAZE_SCALE = 0.85;
+import { AQI_MAX } from "../constants.js";
 
-/** Initializes the haze preview slider.
+/** Haze overlay opacity range for the hero illustration. */
+const HAZE = Object.freeze({ min: 0.08, max: 0.92, scale: 0.85 });
+
+/**
+ * Converts an AQI to the opacity of the haze overlay.
+ * @param {number} aqi
+ * @returns {number} A value between 0.08 and 0.92.
+ */
+export function hazeOpacity(aqi) {
+  return Math.min(HAZE.max, HAZE.min + (aqi / AQI_MAX) * HAZE.scale);
+}
+
+/**
+ * Initializes the haze preview slider.
  * @param {AppDependencies} deps
  * @returns {void}
  */
-export function initHaze(deps) {
-  const { document: doc, Core } = deps;
+export function initHaze({ $, Core }) {
+  const range = $("hazeRange", "input");
   const update = () => {
-    const value = Core.parseAqi(doc.getElementById("hazeRange").value) || 0;
+    const value = Core.parseAqi(range.value) || 0;
     const band = Core.aqiCategory(value);
-    doc
-      .getElementById("scene")
-      .style.setProperty(
-        "--haze",
-        String(Math.min(MAX_HAZE, BASE_HAZE + (value / AQI_MAX) * HAZE_SCALE)),
-      );
-    doc.getElementById("hazeVal").textContent = String(value);
-    doc.getElementById("hazeName").textContent = band.name;
-    doc.getElementById("hazeAdvice").textContent = band.advice;
+    $("scene").style.setProperty("--haze", String(hazeOpacity(value)));
+    $("hazeVal").textContent = String(value);
+    $("hazeName").textContent = band.name;
+    $("hazeAdvice").textContent = band.advice;
   };
-  doc.getElementById("hazeRange").addEventListener("input", update);
+  range.addEventListener("input", update);
   update();
 }

@@ -1,16 +1,8 @@
-"use strict";
 // Browser-level tests: loads the real page in jsdom with a mocked network, then drives the UI.
 import { test, after } from "node:test";
 import assert from "node:assert";
 import axe from "axe-core";
-import {
-  json,
-  tick,
-  fakeFetch,
-  loadPage,
-  closeAll,
-  submit,
-} from "./helpers.js";
+import { json, tick, fakeFetch, loadPage, closeAll, submit } from "./helpers.js";
 
 after(closeAll);
 
@@ -35,8 +27,7 @@ test("world board loads live rows, sorted highest first, and the filter hides ro
 test("world board shows a clear error when live data fails, and refresh recovers", async () => {
   let fail = true;
   const w = await loadPage({
-    fetchImpl: (url, opts) =>
-      fail ? json({}, false, 500) : fakeFetch(url, opts),
+    fetchImpl: (url, opts) => (fail ? json({}, false, 500) : fakeFetch(url, opts)),
   });
   assert.match(byId(w, "world-status").textContent, /Could not load live data/);
   assert.strictEqual(byId(w, "world-status").className, "error");
@@ -67,10 +58,7 @@ test("the world board waits until it is near the viewport before using the netwo
       return fakeFetch(url, opts);
     },
   });
-  assert.ok(
-    !urls.some((u) => u.includes("latitude=28.61,")),
-    "no world request before the section is visible",
-  );
+  assert.ok(!urls.some((u) => u.includes("latitude=28.61,")), "no world request before the section is visible");
   assert.strictEqual(w.document.querySelectorAll("#world-body tr").length, 0);
   reveal();
   await tick();
@@ -101,8 +89,7 @@ test("hero search finds a place, shows live AQI and fills the planner", async ()
 
 test("hero search reports no results and search failures", async () => {
   const empty = await loadPage({
-    fetchImpl: (url, opts) =>
-      url.includes("geocoding") ? json({}) : fakeFetch(url, opts),
+    fetchImpl: (url, opts) => (url.includes("geocoding") ? json({}) : fakeFetch(url, opts)),
   });
   byId(empty, "q").value = "Nowhereville";
   submit(empty, byId(empty, "hero-search"));
@@ -110,8 +97,7 @@ test("hero search reports no results and search failures", async () => {
   assert.match(byId(empty, "quick").textContent, /No places found/);
 
   const broken = await loadPage({
-    fetchImpl: (url, opts) =>
-      url.includes("geocoding") ? json({}, false, 500) : fakeFetch(url, opts),
+    fetchImpl: (url, opts) => (url.includes("geocoding") ? json({}, false, 500) : fakeFetch(url, opts)),
   });
   byId(broken, "q").value = "Pune";
   submit(broken, byId(broken, "hero-search"));
@@ -132,9 +118,7 @@ test("a slow older search never overwrites a newer one", async () => {
         slow.resolve = () =>
           resolve(
             json({
-              results: [
-                { name: "Slowtown", country: "X", latitude: 1, longitude: 1 },
-              ],
+              results: [{ name: "Slowtown", country: "X", latitude: 1, longitude: 1 }],
             }),
           );
       });
@@ -150,9 +134,7 @@ test("a slow older search never overwrites a newer one", async () => {
   await tick();
   slow.resolve();
   await tick();
-  const labels = Array.from(
-    w.document.querySelectorAll("#q-results button"),
-  ).map((b) => b.textContent);
+  const labels = Array.from(w.document.querySelectorAll("#q-results button")).map((b) => b.textContent);
   assert.deepStrictEqual(labels, ["Pune, Maharashtra, India"]);
 });
 
@@ -177,8 +159,7 @@ test("planner place search works with the Enter key and picks a place", async ()
 test('"Use my location" rounds coordinates before they are sent anywhere', async () => {
   const urls = [];
   const geolocation = {
-    getCurrentPosition: (ok) =>
-      ok({ coords: { latitude: 23.022505, longitude: 72.571365 } }),
+    getCurrentPosition: (ok) => ok({ coords: { latitude: 23.022505, longitude: 72.571365 } }),
   };
   const w = await loadPage({
     geolocation,
@@ -189,9 +170,7 @@ test('"Use my location" rounds coordinates before they are sent anywhere', async
   });
   byId(w, "geo").click();
   await tick();
-  const request = urls.find((u) =>
-    u.includes("latitude=23.02&longitude=72.57"),
-  );
+  const request = urls.find((u) => u.includes("latitude=23.02&longitude=72.57"));
   assert.ok(request, "expected rounded coordinates in the request");
   assert.ok(!urls.some((u) => u.includes("23.022505")));
 });
@@ -210,10 +189,7 @@ test('"Use my location" explains refusal and missing support', async () => {
     configurable: true,
   });
   byId(unsupported, "geo").click();
-  assert.match(
-    byId(unsupported, "aqi-status").textContent,
-    /cannot share location/,
-  );
+  assert.match(byId(unsupported, "aqi-status").textContent, /cannot share location/);
 });
 
 test("planner builds a ranked plan, an offline routine and announces it", async () => {
@@ -224,25 +200,17 @@ test("planner builds a ranked plan, an offline routine and announces it", async 
   assert.ok(w.document.querySelectorAll("#plan .plan-list > li").length >= 5);
   assert.strictEqual(byId(w, "ai-section").hidden, false);
   assert.deepStrictEqual(
-    Array.from(w.document.querySelectorAll("#routine h3")).map(
-      (h) => h.textContent,
-    ),
+    Array.from(w.document.querySelectorAll("#routine h3")).map((h) => h.textContent),
     ["Morning", "Midday", "Evening"],
   );
-  assert.match(
-    byId(w, "plan-status").textContent,
-    /Plan ready: \d+ actions for AQI 260, Very unhealthy/,
-  );
+  assert.match(byId(w, "plan-status").textContent, /Plan ready: \d+ actions for AQI 260, Very unhealthy/);
   assert.strictEqual(w.document.activeElement, byId(w, "plan-heading"));
 });
 
 test("planner uses a typical winter level when no AQI is entered", async () => {
   const w = await loadPage();
   submit(w, byId(w, "profile-form"));
-  assert.match(
-    w.document.querySelector(".plan-summary").textContent,
-    /typical winter level/,
-  );
+  assert.match(w.document.querySelector(".plan-summary").textContent, /typical winter level/);
 });
 
 test("planner rejects out-of-range AQI without rendering a plan, then recovers", async () => {
@@ -280,9 +248,7 @@ test("AI button degrades gracefully when the server has no AI configured", async
 
 test("AI button shows the routine when the server answers, as plain text", async () => {
   const fetchImpl = (url, opts) =>
-    url === "/api/routine"
-      ? json({ text: "Morning: <b>stay in</b>" })
-      : fakeFetch(url, opts);
+    url === "/api/routine" ? json({ text: "Morning: <b>stay in</b>" }) : fakeFetch(url, opts);
   const w = await loadPage({ fetchImpl });
   submit(w, byId(w, "profile-form"));
   byId(w, "ask").click();
@@ -304,10 +270,7 @@ test("user text is never interpreted as HTML (XSS)", async () => {
   const w = await loadPage();
   byId(w, "place").value = "<img src=x onerror=alert(1)>";
   submit(w, byId(w, "profile-form"));
-  assert.strictEqual(
-    w.document.querySelectorAll("#plan img, #quick img").length,
-    0,
-  );
+  assert.strictEqual(w.document.querySelectorAll("#plan img, #quick img").length, 0);
   assert.ok(!byId(w, "plan").innerHTML.includes("<img"));
 });
 
@@ -325,11 +288,7 @@ test("page uses one safe ES module script", async () => {
   scripts.forEach((s) => {
     assert.strictEqual(s.type, "module");
   });
-  assert.strictEqual(
-    w.document.querySelectorAll("script:not([src])").length,
-    0,
-    "no inline scripts",
-  );
+  assert.strictEqual(w.document.querySelectorAll("script:not([src])").length, 0, "no inline scripts");
 });
 
 test("haze slider updates the reading and advice", async () => {
@@ -345,10 +304,7 @@ test("AI evaluation dashboard is not included in the website", async () => {
   const w = await loadPage();
   assert.strictEqual(w.document.querySelector("#evaluation"), null);
   assert.strictEqual(w.document.querySelector("[data-score]"), null);
-  assert.strictEqual(
-    w.document.body.textContent.includes("AI Evaluation Score"),
-    false,
-  );
+  assert.strictEqual(w.document.body.textContent.includes("AI Evaluation Score"), false);
 });
 
 test("accessibility: no axe-core violations (page and built plan)", async () => {

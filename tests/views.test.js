@@ -1,7 +1,7 @@
-"use strict";
 import { test, before, after } from "node:test";
 import assert from "node:assert";
 import { JSDOM } from "jsdom";
+import { BANDS } from "../js/data.js";
 
 let dom;
 let Views;
@@ -24,10 +24,7 @@ test("placeLabel joins the parts that exist", () => {
     Views.placeLabel({ name: "Pune", region: "Maharashtra", country: "India" }),
     "Pune, Maharashtra, India",
   );
-  assert.strictEqual(
-    Views.placeLabel({ name: "Your location", region: "", country: "" }),
-    "Your location",
-  );
+  assert.strictEqual(Views.placeLabel({ name: "Your location", region: "", country: "" }), "Your location");
 });
 
 test("placeOption renders a button that reports the chosen place", () => {
@@ -75,19 +72,10 @@ test("planView renders a summary and a ranked list of cards, using text only", (
   assert.strictEqual(items.length, plan.actions.length);
   assert.strictEqual(summary.querySelector("img"), null);
   const first = items[0];
-  assert.strictEqual(
-    first.querySelector("h4").textContent,
-    plan.actions[0].title,
-  );
+  assert.strictEqual(first.querySelector("h4").textContent, plan.actions[0].title);
   assert.match(first.querySelector(".chips").textContent, /High impact/);
-  assert.match(
-    first.querySelector(".chips").textContent,
-    /(Low|Medium|High) effort/,
-  );
-  assert.match(
-    first.querySelector(".action-steps").textContent,
-    /^What to do: /,
-  );
+  assert.match(first.querySelector(".chips").textContent, /(Low|Medium|High) effort/);
+  assert.match(first.querySelector(".action-steps").textContent, /^What to do: /);
 });
 
 test("plan text from rules is never parsed as markup", () => {
@@ -122,16 +110,12 @@ test("routineView returns a heading and list for each part of the day", () => {
 });
 
 test("quickCard ends with a link to the planner", () => {
-  const nodes = Views.quickCard(
-    { name: "Pune", region: "", country: "India" },
-    { aqi: 90 },
-    Core.aqiCategory(90),
-  );
+  const nodes = Views.quickCard({ name: "Pune", region: "", country: "India" }, { aqi: 90 }, Core.aqiCategory(90));
   const link = nodes[nodes.length - 1];
   assert.strictEqual(link.getAttribute("href"), "#planner");
   assert.strictEqual(nodes[1].className, "aqi");
 });
 
 test("every AQI band has a colour", () => {
-  assert.strictEqual(Views.BAND_COLORS.length, Core.BANDS.length);
+  assert.strictEqual(Views.BAND_COLORS.length, BANDS.length);
 });

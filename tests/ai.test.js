@@ -1,4 +1,3 @@
-"use strict";
 import { test } from "node:test";
 import assert from "node:assert";
 import { validateEndpoint, askAI } from "../lib/ai.js";
@@ -90,17 +89,12 @@ test("askAI surfaces HTTP errors, empty answers and bad endpoints", async () => 
     }),
     /empty/,
   );
-  await assert.rejects(
-    askAI({ endpoint: "http://x.test", apiKey: "k", prompt: "p" }),
-    /https/,
-  );
+  await assert.rejects(askAI({ endpoint: "http://x.test", apiKey: "k", prompt: "p" }), /https/);
 });
 
 test("askAI aborts a request that takes too long", async () => {
   const hang = (url, opts) =>
-    new Promise((resolve, reject) =>
-      opts.signal.addEventListener("abort", () => reject(new Error("aborted"))),
-    );
+    new Promise((resolve, reject) => opts.signal.addEventListener("abort", () => reject(new Error("aborted"))));
   await assert.rejects(
     askAI({
       endpoint: "https://x.test",

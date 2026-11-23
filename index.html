@@ -18,31 +18,22 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2317322a'/%3E%3Ctext x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' text-anchor='middle' fill='%23fff'%3ESC%3C/text%3E%3C/svg%3E"
     />
-    <link
-      rel="preconnect"
-      href="https://air-quality-api.open-meteo.com"
-      crossorigin
-    />
-    <link
-      rel="preconnect"
-      href="https://geocoding-api.open-meteo.com"
-      crossorigin
-    />
+    <link rel="preconnect" href="https://air-quality-api.open-meteo.com" crossorigin />
+    <link rel="preconnect" href="https://geocoding-api.open-meteo.com" crossorigin />
     <link rel="stylesheet" href="css/styles.css" />
   </head>
   <body>
     <a class="skip" href="#planner">Skip to the planner</a>
     <noscript
       ><p class="noscript">
-        Smog Companion needs JavaScript to look up live air quality and build
-        your plan. The safety guidance on this page still works without it.
+        Smog Companion needs JavaScript to look up live air quality and build your plan. The safety guidance on this
+        page still works without it.
       </p></noscript
     >
     <header class="nav">
       <div class="wrap nav-in">
         <a class="brand" href="#top"
-          ><span class="brand-mark" aria-hidden="true">SC</span
-          ><span>Smog Companion</span></a
+          ><span class="brand-mark" aria-hidden="true">SC</span><span>Smog Companion</span></a
         >
         <nav aria-label="Main">
           <ul>
@@ -63,9 +54,8 @@
             <p class="eyebrow">Your local clean-air guide</p>
             <h1 id="hero-h">Breathe easier through smog season</h1>
             <p class="lead">
-              Answer a few questions about your home and routine. Get a ranked
-              plan of daily habits, indoor air fixes and greener swaps, each
-              with a plain explanation of how it cuts what you breathe.
+              Answer a few questions about your home and routine. Get a ranked plan of daily habits, indoor air fixes
+              and greener swaps, each with a plain explanation of how it cuts what you breathe.
             </p>
             <form class="hero-search" id="hero-search" role="search" novalidate>
               <label for="q">Search any city for live air quality</label>
@@ -79,22 +69,16 @@
                   placeholder="For example: Delhi, Pune, Manchester"
                 /><button class="btn" type="submit">Search</button>
               </div>
-              <p id="q-help" class="hint">
-                Results use Open-Meteo's global geocoding service.
-              </p>
-              <ul
-                class="results"
-                id="q-results"
-                aria-label="Matching places"
-              ></ul>
+              <p id="q-help" class="hint">Results use Open-Meteo's global geocoding service.</p>
+              <ul class="results" id="q-results" aria-label="Matching places"></ul>
               <div id="quick" class="quick" aria-live="polite" hidden></div>
             </form>
             <p><a class="btn" href="#planner">Build my clean-air plan</a></p>
-            <div class="hero-proof" aria-label="Planner features">
-              <span><strong>Live</strong> global AQI</span>
-              <span><strong>Private</strong> in-browser planning</span>
-              <span><strong>Offline</strong> daily routine</span>
-            </div>
+            <ul class="hero-proof" aria-label="Planner features">
+              <li><strong>Live</strong> global AQI</li>
+              <li><strong>Private</strong> in-browser planning</li>
+              <li><strong>Offline</strong> daily routine</li>
+            </ul>
           </div>
           <figure class="scene" id="scene">
             <svg
@@ -121,20 +105,11 @@
             </svg>
             <div class="haze" id="haze"></div>
             <figcaption>
-              <label for="hazeRange"
-                >Drag to see how air quality changes the view</label
-              >
-              <input
-                id="hazeRange"
-                type="range"
-                min="0"
-                max="500"
-                step="5"
-                value="60"
-              />
+              <label for="hazeRange">Drag to see how air quality changes the view</label>
+              <input id="hazeRange" type="range" min="0" max="500" step="5" value="60" />
               <p class="scene-read">
-                <strong id="hazeName">Moderate</strong> (AQI
-                <span id="hazeVal">60</span>). <span id="hazeAdvice"></span>
+                <strong id="hazeName">Moderate</strong> (AQI <span id="hazeVal">60</span>).
+                <span id="hazeAdvice"></span>
               </p>
             </figcaption>
           </figure>
@@ -146,24 +121,15 @@
         <ol class="steps">
           <li>
             <h3>Tell us about your day</h3>
-            <p>
-              City, today's AQI, who needs extra care, and how you travel, cook
-              and heat your home.
-            </p>
+            <p>City, today's AQI, who needs extra care, and how you travel, cook and heat your home.</p>
           </li>
           <li>
             <h3>Get a ranked plan</h3>
-            <p>
-              Actions are sorted by impact. Every one shows the steps to take,
-              the effort, and how it helps.
-            </p>
+            <p>Actions are sorted by impact. Every one shows the steps to take, the effort, and how it helps.</p>
           </li>
           <li>
             <h3>Ask AI for a daily routine</h3>
-            <p>
-              Optionally connect an AI service to turn the plan into a morning,
-              midday and evening schedule.
-            </p>
+            <p>Optionally connect an AI service to turn the plan into a morning, midday and evening schedule.</p>
           </li>
         </ol>
       </section>
@@ -174,24 +140,15 @@
             <p class="eyebrow">Live conditions</p>
             <h2 id="world-h">Air quality around the world</h2>
           </div>
-          <button class="btn alt" type="button" id="refresh">
-            Refresh data
-          </button>
+          <button class="btn alt" type="button" id="refresh">Refresh data</button>
         </div>
         <p class="hint">
-          Live US AQI from Open-Meteo, highest first. These are modelled
-          estimates, not local monitor readings. Choose "Use" to plan for that
-          place.
+          Live US AQI from Open-Meteo, highest first. These are modelled estimates, not local monitor readings. Choose
+          "Use" to plan for that place.
         </p>
         <div class="world-toolbar">
           <label for="filter">Filter by city or country</label>
-          <input
-            id="filter"
-            type="search"
-            maxlength="40"
-            autocomplete="off"
-            placeholder="For example: India"
-          />
+          <input id="filter" type="search" maxlength="40" autocomplete="off" placeholder="For example: India" />
           <span id="world-status" class="hint" aria-live="polite"></span>
         </div>
         <div class="tablewrap">
@@ -220,8 +177,7 @@
               <p class="eyebrow">Personal recommendations</p>
               <h2 id="form-title">Your clean-air planner</h2>
               <p class="planner-intro">
-                Tell us about your routine and we’ll prioritize practical steps
-                for cleaner indoor and outdoor air.
+                Tell us about your routine and we’ll prioritize practical steps for cleaner indoor and outdoor air.
               </p>
             </div>
           </div>
@@ -239,20 +195,15 @@
                         maxlength="80"
                         autocomplete="off"
                         placeholder="e.g. Mumbai"
-                      /><button class="btn alt" type="button" id="find">
-                        Search
-                      </button>
+                      /><button class="btn alt" type="button" id="find">Search</button>
                     </div>
                   </div>
                   <div class="geo-field">
                     <label for="geo">Or use your device</label
-                    ><button class="btn alt" type="button" id="geo">
-                      Use my location
-                    </button>
+                    ><button class="btn alt" type="button" id="geo">Use my location</button>
                   </div>
                   <div class="aqi-field">
-                    <label for="aqi"
-                      >Today's AQI <span class="hint">(0 to 500)</span></label
+                    <label for="aqi">Today's AQI <span class="hint">(0 to 500)</span></label
                     ><input
                       id="aqi"
                       type="number"
@@ -263,33 +214,18 @@
                     />
                   </div>
                 </div>
-                <ul
-                  class="results"
-                  id="place-results"
-                  aria-label="Matching places"
-                ></ul>
+                <ul class="results" id="place-results" aria-label="Matching places"></ul>
                 <p id="aqi-status" class="hint" aria-live="polite">
-                  Enter an AQI from 0 to 500, or search for a place to fill it
-                  automatically.
+                  Enter an AQI from 0 to 500, or search for a place to fill it automatically.
                 </p>
               </fieldset>
               <fieldset>
                 <legend>Vulnerable Groups (Who needs extra care)</legend>
                 <div class="grid">
-                  <label class="check"
-                    ><input type="checkbox" id="children" />Children under
-                    12</label
-                  >
-                  <label class="check"
-                    ><input type="checkbox" id="elderly" />Adults over 65</label
-                  >
-                  <label class="check"
-                    ><input type="checkbox" id="respiratory" />Asthma, lung or
-                    heart condition</label
-                  >
-                  <label class="check"
-                    ><input type="checkbox" id="pregnant" />Pregnancy</label
-                  >
+                  <label class="check"><input type="checkbox" id="children" />Children under 12</label>
+                  <label class="check"><input type="checkbox" id="elderly" />Adults over 65</label>
+                  <label class="check"><input type="checkbox" id="respiratory" />Asthma, lung or heart condition</label>
+                  <label class="check"><input type="checkbox" id="pregnant" />Pregnancy</label>
                 </div>
               </fieldset>
               <fieldset>
@@ -341,29 +277,20 @@
                 <div class="empty-plan">
                   <span aria-hidden="true">01</span>
                   <p>
-                    Complete the form and choose “Build my clean-air plan”. Your
-                    ranked recommendations will appear here.
+                    Complete the form and choose “Build my clean-air plan”. Your ranked recommendations will appear
+                    here.
                   </p>
                 </div>
               </div>
             </section>
           </div>
 
-          <section
-            class="panel"
-            id="ai-section"
-            aria-labelledby="ai-heading"
-            hidden
-          >
+          <section class="panel" id="ai-section" aria-labelledby="ai-heading" hidden>
             <h2 id="ai-heading">Your daily routine</h2>
             <div id="routine"></div>
             <p>
-              <button class="btn" type="button" id="ask">
-                Improve this with AI
-              </button>
-              <span id="ai-note" class="hint"
-                >Needs the Node server with an AI key (see README).</span
-              >
+              <button class="btn" type="button" id="ask">Improve this with AI</button>
+              <span id="ai-note" class="hint">Needs the Node server with an AI key (see README).</span>
             </p>
             <div id="ai-out" aria-live="polite"></div>
           </section>
@@ -376,29 +303,22 @@
           <div>
             <dt>Myth: Indoor plants clean smoggy air.</dt>
             <dd>
-              Fact: You would need far more plants than any home holds to
-              matter. A sealed room with a filter does much more.
+              Fact: You would need far more plants than any home holds to matter. A sealed room with a filter does much
+              more.
             </dd>
           </div>
           <div>
             <dt>Myth: A cloth scarf is as good as a mask.</dt>
-            <dd>
-              Fact: Fine PM2.5 passes through cloth. A fitted N95 or FFP2
-              filters at least 95% of fine particles.
-            </dd>
+            <dd>Fact: Fine PM2.5 passes through cloth. A fitted N95 or FFP2 filters at least 95% of fine particles.</dd>
           </div>
           <div>
             <dt>Myth: Open the windows to freshen the air.</dt>
-            <dd>
-              Fact: On smog days that lets pollution in. Ventilate briefly at
-              midday when readings are lowest.
-            </dd>
+            <dd>Fact: On smog days that lets pollution in. Ventilate briefly at midday when readings are lowest.</dd>
           </div>
           <div>
             <dt>Myth: One household cannot change the air.</dt>
             <dd>
-              Fact: Open burning, vehicles and cooking fuel add up street by
-              street. Lane-level action is measurable.
+              Fact: Open burning, vehicles and cooking fuel add up street by street. Lane-level action is measurable.
             </dd>
           </div>
         </dl>
@@ -410,31 +330,25 @@
           <details>
             <summary>Where do I find today's AQI?</summary>
             <p>
-              Use your national air quality app or website, or a trusted global
-              AQI service. Enter the number into the planner for advice that
-              matches today.
+              Use your national air quality app or website, or a trusted global AQI service. Enter the number into the
+              planner for advice that matches today.
             </p>
           </details>
           <details>
             <summary>Is this medical advice?</summary>
-            <p>
-              No. It gives general guidance. Speak to a doctor about symptoms,
-              medicines or a health condition.
-            </p>
+            <p>No. It gives general guidance. Speak to a doctor about symptoms, medicines or a health condition.</p>
           </details>
           <details>
             <summary>Are the impact numbers exact?</summary>
             <p>
-              No. Figures marked as estimates are approximate. The High, Medium
-              and Low labels show relative benefit.
+              No. Figures marked as estimates are approximate. The High, Medium and Low labels show relative benefit.
             </p>
           </details>
           <details>
             <summary>Is my data stored?</summary>
             <p>
-              No. Everything runs in your browser. Nothing is saved. If AI is
-              enabled, its key stays on the server and never reaches your
-              browser.
+              No. Everything runs in your browser. Nothing is saved. If AI is enabled, its key stays on the server and
+              never reaches your browser.
             </p>
           </details>
         </div>

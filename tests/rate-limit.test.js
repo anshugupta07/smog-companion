@@ -1,4 +1,3 @@
-"use strict";
 import { test } from "node:test";
 import assert from "node:assert";
 import { createRateLimiter } from "../lib/rate-limit.js";
@@ -27,9 +26,5 @@ test("the key table is capped so memory cannot grow without bound", () => {
     now: () => 0,
   });
   ["a", "b", "c", "d", "e"].forEach((key) => limited(key));
-  assert.strictEqual(
-    limited("a"),
-    false,
-    'oldest keys were evicted, so "a" starts fresh',
-  );
+  assert.strictEqual(limited("a"), false, 'oldest keys were evicted, so "a" starts fresh');
 });

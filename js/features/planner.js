@@ -1,59 +1,71 @@
-const AQI_MAX = 500;
+import { AQI_MAX, AQI_MIN } from "../constants.js";
+import { MESSAGES } from "../content/messages.js";
 
-/** Validates a raw AQI input.
+/**
+ * Validates a raw AQI entry from the form.
  * @param {string} raw
- * @returns {string}
+ * @returns {string} An error message, or "" when the entry is empty or valid.
  */
 export function aqiError(raw) {
-  if (raw === "") return "";
+  if (raw === "") {
+    return "";
+  }
   const number = Number(raw);
-  return Number.isFinite(number) && number >= 0 && number <= AQI_MAX
-    ? ""
-    : "Enter an AQI from 0 to 500.";
+  return Number.isFinite(number) && number >= AQI_MIN && number <= AQI_MAX ? "" : MESSAGES.aqiRange;
 }
 
-/** Initializes planner submission and plan rendering.
+/**
+ * Reads the planner form into a raw (not yet whitelisted) profile.
+ * @param {AppDependencies} deps
+ * @returns {Record<string, unknown>}
+ */
+function readProfile({ $, Views, state }) {
+  return {
+    cityName: state.place ? Views.placeLabel(state.place) : $("place", "input").value,
+    aqi: $("aqi", "input").value,
+    children: $("children", "input").checked,
+    elderly: $("elderly", "input").checked,
+    respiratory: $("respiratory", "input").checked,
+    pregnant: $("pregnant", "input").checked,
+    commute: $("commute", "select").value,
+    cooking: $("cooking", "select").value,
+    heating: $("heating", "select").value,
+    purifier: $("purifier", "select").value,
+  };
+}
+
+/**
+ * Shows the plan, the offline routine and a screen-reader announcement, then moves focus to the plan.
+ * @param {AppDependencies} deps
+ * @param {Plan} plan
+ * @returns {void}
+ */
+function renderPlan({ $, Core, Views }, plan) {
+  $("plan").replaceChildren(...Views.planView(plan));
+  $("routine").replaceChildren(...Views.routineView(Core.buildRoutine(plan)));
+  $("ai-section").hidden = false;
+  $("plan-status").textContent = MESSAGES.planReady(plan.actions.length, plan.profile.aqi, plan.band.name);
+  $("plan-heading").focus();
+}
+
+/**
+ * Initializes planner submission and plan rendering.
  * @param {AppDependencies} deps
  * @returns {void}
  */
 export function initPlanner(deps) {
-  const { document: doc, Core, Views, state } = deps;
-  const readProfile = () => ({
-    city: "other",
-    cityName: state.place
-      ? Views.placeLabel(state.place)
-      : doc.getElementById("place").value,
-    aqi: doc.getElementById("aqi").value,
-    children: doc.getElementById("children").checked,
-    elderly: doc.getElementById("elderly").checked,
-    respiratory: doc.getElementById("respiratory").checked,
-    pregnant: doc.getElementById("pregnant").checked,
-    commute: doc.getElementById("commute").value,
-    cooking: doc.getElementById("cooking").value,
-    heating: doc.getElementById("heating").value,
-    purifier: doc.getElementById("purifier").value,
-  });
-  const renderPlan = (plan) => {
-    doc.getElementById("plan").replaceChildren(...Views.planView(plan));
-    doc
-      .getElementById("routine")
-      .replaceChildren(...Views.routineView(Core.buildRoutine(plan)));
-    doc.getElementById("ai-section").hidden = false;
-    doc.getElementById("plan-status").textContent =
-      `Plan ready: ${plan.actions.length} actions for AQI ${plan.profile.aqi}, ${plan.band.name}.`;
-    doc.getElementById("plan-heading").focus();
-  };
-  const input = doc.getElementById("aqi");
-  input.addEventListener("input", () => input.setCustomValidity(""));
-  doc.getElementById("profile-form").addEventListener("submit", (event) => {
+  const { $, Core, state } = deps;
+  const aqiInput = $("aqi", "input");
+  aqiInput.addEventListener("input", () => aqiInput.setCustomValidity(""));
+  $("profile-form").addEventListener("submit", (event) => {
     event.preventDefault();
-    const message = aqiError(input.value.trim());
-    input.setCustomValidity(message);
+    const message = aqiError(aqiInput.value.trim());
+    aqiInput.setCustomValidity(message);
     if (message) {
-      input.reportValidity();
+      aqiInput.reportValidity();
       return;
     }
-    state.plan = Core.buildPlan(readProfile());
-    renderPlan(state.plan);
+    state.plan = Core.buildPlan(readProfile(deps));
+    renderPlan(deps, state.plan);
   });
 }

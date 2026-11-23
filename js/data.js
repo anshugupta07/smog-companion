@@ -2,17 +2,8 @@
  * Smog Companion - static data: AQI bands, option lists, advice rules and the world board places.
  * Pure data only (no logic beyond tiny predicates) so it is easy to review, translate and test.
  */
+import { BAND_LEVEL } from "./constants.js";
 import { EN_BANDS, EN_RULES } from "./content/en.js";
-
-/** Typical peak-winter AQI per city. Rough defaults used only when no live AQI is known. */
-const CITIES = Object.freeze({
-  delhi: { label: "Delhi NCR", aqi: 320 },
-  ahmedabad: { label: "Ahmedabad", aqi: 180 },
-  lahore: { label: "Lahore", aqi: 300 },
-  kathmandu: { label: "Kathmandu", aqi: 190 },
-  beijing: { label: "Beijing", aqi: 170 },
-  other: { label: "Other city", aqi: 120 },
-});
 
 /** Allowed values for each profile choice. Anything else falls back to a safe default. */
 const ENUMS = Object.freeze({
@@ -22,32 +13,40 @@ const ENUMS = Object.freeze({
   purifier: ["yes", "no"],
 });
 
-/** US-EPA style bands. Each band carries a text label so meaning never depends on colour alone. */
-// US-EPA style bands. Each band always carries a text label (never colour alone).
+/**
+ * US-EPA style bands. Each band carries a text label so meaning never depends on colour alone.
+ * @type {readonly Band[]}
+ */
 const BANDS = Object.freeze([
-  { max: 50, level: 0, ...EN_BANDS[0] },
-  { max: 100, level: 1, ...EN_BANDS[1] },
-  { max: 150, level: 2, ...EN_BANDS[2] },
-  { max: 200, level: 3, ...EN_BANDS[3] },
-  { max: 300, level: 4, ...EN_BANDS[4] },
-  { max: 500, level: 5, ...EN_BANDS[5] },
+  { max: 50, level: BAND_LEVEL.good, ...EN_BANDS[0] },
+  { max: 100, level: BAND_LEVEL.moderate, ...EN_BANDS[1] },
+  { max: 150, level: BAND_LEVEL.sensitiveGroups, ...EN_BANDS[2] },
+  { max: 200, level: BAND_LEVEL.unhealthy, ...EN_BANDS[3] },
+  { max: 300, level: BAND_LEVEL.veryUnhealthy, ...EN_BANDS[4] },
+  { max: 500, level: BAND_LEVEL.hazardous, ...EN_BANDS[5] },
 ]);
 
 /** Numeric weight of each impact label, used to rank actions. */
+/** @type {Readonly<Record<Impact, number>>} */
 const IMPACT_WEIGHT = Object.freeze({ High: 3, Medium: 2, Low: 1 });
 
+/**
+ * True when anyone in the household belongs to a sensitive group.
+ * @param {Profile} profile
+ * @returns {boolean}
+ */
 const isSensitive = (profile) =>
-  Boolean(
-    profile.children ||
-    profile.elderly ||
-    profile.respiratory ||
-    profile.pregnant,
-  );
+  Boolean(profile.children || profile.elderly || profile.respiratory || profile.pregnant);
 
 /**
  * Advice rules. `applies(profile, band)` decides whether a rule is shown.
  * Impact figures are approximate and labelled as estimates in the text.
  */
+/**
+ * @typedef {Action & {applies: (profile: Profile, band: Band) => boolean}} Rule
+ */
+
+/** @type {readonly Rule[]} */
 const RULES = [
   {
     id: "mask",
@@ -55,7 +54,7 @@ const RULES = [
     ...EN_RULES.mask,
     impact: "High",
     effort: "Low",
-    applies: (p, b) => b.level >= 3 || (isSensitive(p) && b.level >= 2),
+    applies: (p, b) => b.level >= BAND_LEVEL.unhealthy || (isSensitive(p) && b.level >= BAND_LEVEL.sensitiveGroups),
   },
   {
     id: "timing",
@@ -63,7 +62,7 @@ const RULES = [
     ...EN_RULES.timing,
     impact: "Medium",
     effort: "Low",
-    applies: (p, b) => b.level >= 2,
+    applies: (p, b) => b.level >= BAND_LEVEL.sensitiveGroups,
   },
   {
     id: "sensitive",
@@ -71,7 +70,7 @@ const RULES = [
     ...EN_RULES.sensitive,
     impact: "High",
     effort: "Low",
-    applies: (p, b) => isSensitive(p) && b.level >= 2,
+    applies: (p, b) => isSensitive(p) && b.level >= BAND_LEVEL.sensitiveGroups,
   },
   {
     id: "purifier-diy",
@@ -79,7 +78,7 @@ const RULES = [
     ...EN_RULES["purifier-diy"],
     impact: "High",
     effort: "Medium",
-    applies: (p, b) => p.purifier === "no" && b.level >= 2,
+    applies: (p, b) => p.purifier === "no" && b.level >= BAND_LEVEL.sensitiveGroups,
   },
   {
     id: "purifier-use",
@@ -87,7 +86,7 @@ const RULES = [
     ...EN_RULES["purifier-use"],
     impact: "Medium",
     effort: "Low",
-    applies: (p, b) => p.purifier === "yes" && b.level >= 2,
+    applies: (p, b) => p.purifier === "yes" && b.level >= BAND_LEVEL.sensitiveGroups,
   },
   {
     id: "ventilate",
@@ -95,7 +94,7 @@ const RULES = [
     ...EN_RULES.ventilate,
     impact: "Medium",
     effort: "Low",
-    applies: (p, b) => b.level >= 2,
+    applies: (p, b) => b.level >= BAND_LEVEL.sensitiveGroups,
   },
   {
     id: "cook-biomass",
@@ -135,7 +134,7 @@ const RULES = [
     ...EN_RULES["commute-active"],
     impact: "Medium",
     effort: "Low",
-    applies: (p, b) => p.commute === "active" && b.level >= 3,
+    applies: (p, b) => p.commute === "active" && b.level >= BAND_LEVEL.unhealthy,
   },
   {
     id: "commute-wfh",
@@ -143,7 +142,7 @@ const RULES = [
     ...EN_RULES["commute-wfh"],
     impact: "Medium",
     effort: "Low",
-    applies: (p, b) => p.commute === "wfh" || b.level >= 4,
+    applies: (p, b) => p.commute === "wfh" || b.level >= BAND_LEVEL.veryUnhealthy,
   },
   {
     id: "clean-home",
@@ -164,8 +163,14 @@ const RULES = [
 ];
 Object.freeze(RULES);
 
-const worldPlace = (name, country, lat, lon) =>
-  Object.freeze({ name, country, lat, lon });
+/**
+ * @param {string} name
+ * @param {string} country
+ * @param {number} lat
+ * @param {number} lon
+ * @returns {Readonly<Place>}
+ */
+const worldPlace = (name, country, lat, lon) => Object.freeze({ name, country, lat, lon });
 
 /** Thirty major cities shown on the live world board. */
 const WORLD = Object.freeze([
@@ -201,4 +206,4 @@ const WORLD = Object.freeze([
   worldPlace("Sydney", "Australia", -33.87, 151.21),
 ]);
 
-export { CITIES, ENUMS, BANDS, IMPACT_WEIGHT, RULES, WORLD, isSensitive };
+export { ENUMS, BANDS, IMPACT_WEIGHT, RULES, WORLD, isSensitive };

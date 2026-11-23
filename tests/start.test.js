@@ -1,4 +1,3 @@
-"use strict";
 // Starts the real server process: boot, health check, graceful SIGTERM shutdown and port-in-use error.
 import { test } from "node:test";
 import assert from "node:assert";
@@ -30,9 +29,7 @@ function boot(port) {
   child.stderr.on("data", (c) => {
     output.err += c;
   });
-  const exited = new Promise((resolve) =>
-    child.on("exit", (code, signal) => resolve({ code, signal })),
-  );
+  const exited = new Promise((resolve) => child.on("exit", (code, signal) => resolve({ code, signal })));
   return { child, output, exited };
 }
 
@@ -40,7 +37,9 @@ async function waitForHealth(port) {
   for (let i = 0; i < 50; i++) {
     try {
       const res = await fetch(`http://127.0.0.1:${port}/healthz`);
-      if (res.ok) return res;
+      if (res.ok) {
+        return res;
+      }
     } catch {
       /* not listening yet */
     }
