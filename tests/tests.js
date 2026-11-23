@@ -35,10 +35,7 @@ const ids = (plan) => plan.actions.map((a) => a.id);
   });
 
   await test("sanitizeText removes markup and control chars, caps length", () => {
-    assert.strictEqual(
-      S.sanitizeText("<script>alert(1)</script>"),
-      "script alert(1) /script",
-    );
+    assert.strictEqual(S.sanitizeText("<script>alert(1)</script>"), "script alert(1) /script");
     assert.strictEqual(S.sanitizeText("a\u0000b\n\nc"), "a b c");
     assert.strictEqual(S.sanitizeText("x".repeat(500), 10).length, 10);
     assert.strictEqual(S.sanitizeText(null), "");
@@ -90,9 +87,7 @@ const ids = (plan) => plan.actions.map((a) => a.id);
 
   await test("hazardous air triggers mask, WFH and DIY purifier", () => {
     const plan = S.buildPlan({ aqi: 350, purifier: "no" });
-    ["mask", "commute-wfh", "purifier-diy", "ventilate"].forEach((id) =>
-      assert.ok(ids(plan).includes(id), id),
-    );
+    ["mask", "commute-wfh", "purifier-diy", "ventilate"].forEach((id) => assert.ok(ids(plan).includes(id), id));
   });
 
   await test("purifier owners get usage tips instead of DIY build", () => {
@@ -103,9 +98,7 @@ const ids = (plan) => plan.actions.map((a) => a.id);
 
   await test("sensitive groups get care advice at lower AQI", () => {
     assert.ok(!ids(S.buildPlan({ aqi: 120 })).includes("sensitive"));
-    assert.ok(
-      ids(S.buildPlan({ aqi: 120, children: true })).includes("sensitive"),
-    );
+    assert.ok(ids(S.buildPlan({ aqi: 120, children: true })).includes("sensitive"));
     assert.ok(ids(S.buildPlan({ aqi: 120, elderly: true })).includes("mask"));
   });
 
@@ -116,9 +109,7 @@ const ids = (plan) => plan.actions.map((a) => a.id);
       heating: "solid",
       commute: "car",
     });
-    ["cook-biomass", "heat-solid", "commute-car"].forEach((id) =>
-      assert.ok(ids(plan).includes(id), id),
-    );
+    ["cook-biomass", "heat-solid", "commute-car"].forEach((id) => assert.ok(ids(plan).includes(id), id));
     assert.ok(!ids(plan).includes("cook-vent"));
   });
 
@@ -208,10 +199,7 @@ const ids = (plan) => plan.actions.map((a) => a.id);
       }),
       /empty/,
     );
-    await assert.rejects(
-      S.askAI({ endpoint: "http://x.test", apiKey: "k", prompt: "p" }),
-      /https/,
-    );
+    await assert.rejects(S.askAI({ endpoint: "http://x.test", apiKey: "k", prompt: "p" }), /https/);
   });
 
   const mk =
@@ -269,18 +257,12 @@ const ids = (plan) => plan.actions.map((a) => a.id);
     assert.strictEqual(r.aqi, 187);
     assert.strictEqual(r.pm25, 98.2);
     await assert.rejects(S.fetchAqi(200, 0), RangeError);
-    await assert.rejects(
-      S.fetchAqi(1, 1, mk({ current: {} })),
-      /No air quality/,
-    );
+    await assert.rejects(S.fetchAqi(1, 1, mk({ current: {} })), /No air quality/);
     await assert.rejects(S.fetchAqi(1, 1, mk({}, false, 500)), /500/);
   });
 
   await test("fetchAqiMany returns one entry per place with null for missing data", async () => {
-    const f = mk([
-      { current: { us_aqi: 300, pm2_5: 200, time: "t" } },
-      { current: {} },
-    ]);
+    const f = mk([{ current: { us_aqi: 300, pm2_5: 200, time: "t" } }, { current: {} }]);
     const out = await S.fetchAqiMany(
       [
         { name: "A", lat: 1, lon: 2 },
@@ -297,10 +279,7 @@ const ids = (plan) => plan.actions.map((a) => a.id);
   await test("WORLD list has valid, unique places", () => {
     assert.ok(S.WORLD.length >= 20);
     S.WORLD.forEach((p) => assert.ok(S.validCoord(p.lat, p.lon), p.name));
-    assert.strictEqual(
-      new Set(S.WORLD.map((p) => p.name)).size,
-      S.WORLD.length,
-    );
+    assert.strictEqual(new Set(S.WORLD.map((p) => p.name)).size, S.WORLD.length);
   });
 
   await test("buildRoutine gives morning, midday and evening steps that match the plan", () => {
