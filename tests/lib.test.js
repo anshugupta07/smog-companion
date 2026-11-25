@@ -20,6 +20,13 @@ test("readBody rejects a declared size over the limit before reading", async () 
   await assert.rejects(readBody(req, 100), (error) => error instanceof ApiError && error.status === 413);
 });
 
+test("readBody ignores malformed declared lengths and handles repeated length headers", async () => {
+  const malformed = fakeRequest([Buffer.from("ok")], { "content-length": "not-a-number" });
+  assert.strictEqual(await readBody(malformed, 100), "ok");
+  const repeated = fakeRequest([Buffer.from("ok")], { "content-length": ["5000", "10"] });
+  await assert.rejects(readBody(repeated, 100), (error) => error instanceof ApiError && error.status === 413);
+});
+
 test("readBody rejects a streamed body that grows past the limit", async () => {
   const req = fakeRequest([Buffer.alloc(80), Buffer.alloc(80)]);
   await assert.rejects(readBody(req, 100), (error) => error instanceof ApiError && error.status === 413);

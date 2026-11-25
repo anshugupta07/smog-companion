@@ -154,6 +154,22 @@ function createStationHandler(ctx, providerFetch) {
 }
 
 /**
+ * Gets the final comma-separated header value, which represents the closest proxy hop.
+ * @param {string|string[]|undefined} header
+ * @returns {string}
+ */
+function lastHeaderValue(header) {
+  const values = Array.isArray(header) ? header.join(",") : String(header || "");
+  return (
+    values
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .pop() || ""
+  );
+}
+
+/**
  * Builds the per-server helpers that need configuration: client identity, HTTPS detection, rate limiters.
  * @param {Record<string, string|undefined>} env
  * @param {() => number} now
@@ -166,19 +182,11 @@ function createContext(env, now) {
     isRoutineLimited: createRateLimiter({ ...RATE_LIMIT.routine, now }),
     isStationLimited: createRateLimiter({ ...RATE_LIMIT.station, now }),
     clientKey(req) {
-      const forwardedHeader = req.headers["x-forwarded-for"];
-      const forwardedValues = Array.isArray(forwardedHeader)
-        ? forwardedHeader
-        : [forwardedHeader ? String(forwardedHeader) : ""];
-      const forwarded = trustProxy ? forwardedValues.join(",").split(",").pop()?.trim() : "";
+      const forwarded = trustProxy ? lastHeaderValue(req.headers["x-forwarded-for"]) : "";
       return forwarded || req.socket.remoteAddress || "unknown";
     },
     isHttps(req) {
-      const protoHeader = req.headers["x-forwarded-proto"];
-      const forwardedProto = (Array.isArray(protoHeader) ? protoHeader.join(",") : String(protoHeader || ""))
-        .split(",")
-        .map((value) => value.trim().toLowerCase())
-        .pop();
+      const forwardedProto = lastHeaderValue(req.headers["x-forwarded-proto"]).toLowerCase();
       return "encrypted" in req.socket || (trustProxy && forwardedProto === "https");
     },
   };
