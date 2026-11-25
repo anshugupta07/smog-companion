@@ -15,7 +15,14 @@ import { isValidCoordinate } from "./js/coordinates.js";
 import { ApiError } from "./js/errors.js";
 import { askAI } from "./lib/ai.js";
 import { readBody } from "./lib/body.js";
-import { DEFAULT_PORT, MAX_BODY_BYTES, RATE_LIMIT, SERVER_TIMEOUT_MS, SHUTDOWN_GRACE_MS } from "./lib/config.js";
+import {
+  DEFAULT_PORT,
+  MAX_BODY_BYTES,
+  MAX_PORT,
+  RATE_LIMIT,
+  SERVER_TIMEOUT_MS,
+  SHUTDOWN_GRACE_MS,
+} from "./lib/config.js";
 import { isJsonRequest, send, sendJson } from "./lib/http.js";
 import { createRateLimiter } from "./lib/rate-limit.js";
 import { HSTS } from "./lib/security.js";
@@ -159,16 +166,20 @@ function createContext(env, now) {
     isRoutineLimited: createRateLimiter({ ...RATE_LIMIT.routine, now }),
     isStationLimited: createRateLimiter({ ...RATE_LIMIT.station, now }),
     clientKey(req) {
-      const forwarded = trustProxy
-        ? String(req.headers["x-forwarded-for"] || "")
-            .split(",")
-            .pop()
-            ?.trim()
-        : "";
+      const forwardedHeader = req.headers["x-forwarded-for"];
+      const forwardedValues = Array.isArray(forwardedHeader)
+        ? forwardedHeader
+        : [forwardedHeader ? String(forwardedHeader) : ""];
+      const forwarded = trustProxy ? forwardedValues.join(",").split(",").pop()?.trim() : "";
       return forwarded || req.socket.remoteAddress || "unknown";
     },
     isHttps(req) {
-      return "encrypted" in req.socket || (trustProxy && req.headers["x-forwarded-proto"] === "https");
+      const protoHeader = req.headers["x-forwarded-proto"];
+      const forwardedProto = (Array.isArray(protoHeader) ? protoHeader.join(",") : String(protoHeader || ""))
+        .split(",")
+        .map((value) => value.trim().toLowerCase())
+        .pop();
+      return "encrypted" in req.socket || (trustProxy && forwardedProto === "https");
     },
   };
 }
@@ -218,7 +229,13 @@ function createApp({ env = process.env, ask = askAI, now = Date.now, providerFet
 
 /** Starts the server on PORT and shuts it down gracefully on SIGTERM or SIGINT. */
 function start() {
-  const port = Number(process.env.PORT) || DEFAULT_PORT;
+  const rawPort = process.env.PORT?.trim();
+  const port = rawPort ? Number(rawPort) : DEFAULT_PORT;
+  if (!Number.isInteger(port) || port < 0 || port > MAX_PORT) {
+    console.error(`Invalid PORT: ${rawPort}. Use an integer from 0 to 65535.`);
+    process.exitCode = 1;
+    return;
+  }
   const server = createApp();
   server.headersTimeout = SERVER_TIMEOUT_MS.headers;
   server.requestTimeout = SERVER_TIMEOUT_MS.request;

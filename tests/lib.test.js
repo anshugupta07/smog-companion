@@ -4,6 +4,7 @@ import assert from "node:assert";
 import { Readable } from "node:stream";
 import { readBody } from "../lib/body.js";
 import { fetchStationReading, stationReading } from "../lib/station.js";
+import { chooseEncoding, isNotModified } from "../lib/static.js";
 import { ApiError } from "../js/errors.js";
 
 /** A minimal stand-in for an incoming request. */
@@ -29,6 +30,15 @@ test("readBody passes stream errors on", async () => {
   const result = readBody(req, 100);
   req.destroy(new Error("socket closed"));
   await assert.rejects(result, /socket closed/);
+});
+
+test("encoding and ETag helpers handle negotiation and weak tags", () => {
+  assert.strictEqual(chooseEncoding("gzip;q=1, br;q=0"), "gzip");
+  assert.strictEqual(chooseEncoding("br;q=0, gzip;q=0"), "identity");
+  assert.strictEqual(isNotModified("*", '"abc"'), true);
+  assert.strictEqual(isNotModified('W/"abc"', '"abc"'), true);
+  assert.strictEqual(isNotModified('"def", "abc"', '"abc"'), true);
+  assert.strictEqual(isNotModified('"def"', '"abc"'), false);
 });
 
 const providerBody = {
