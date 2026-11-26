@@ -3,7 +3,7 @@
 A website for families facing winter smog. Search any place in the world, see its live air quality, and get a ranked plan of low-emission routines, indoor air fixes and greener alternatives, with the impact of each explained. A world board shows live AQI for 30 major cities. A rule-based daily routine works offline; an optional AI step improves it through a secure server-side proxy.
 
 ## Run
-
+49F2QE
 ```
 npm install
 npm start            # http://localhost:3000
